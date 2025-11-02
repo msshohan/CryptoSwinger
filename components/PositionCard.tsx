@@ -204,7 +204,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
         : 0;
 
     return (
-        <div className="grid grid-cols-9 gap-2 p-2 border-b border-brand-border/50 text-sm items-center">
+        <div className={`grid ${isLedgerView ? 'grid-cols-8' : 'grid-cols-9'} gap-2 p-2 border-b border-brand-border/50 text-sm items-center`}>
             <div>{new Date(trade.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
             <div className={`flex items-center gap-1 font-semibold ${trade.action === 'Buy' ? 'text-brand-success' : 'text-brand-danger'}`}>
                 {trade.action === 'Buy' ? <ArrowUpIcon /> : <ArrowDownIcon />}
@@ -216,52 +216,50 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
             <div>{formatCurrency(trade.total)}</div>
             <div>{formatCurrency(trade.fee).substring(1)}</div>
             <div className="text-center">{trade.leverage ? `${trade.leverage}x` : '-'}</div>
-            <div className="flex items-center justify-center gap-2 text-xs relative">
-                {tradeToDeleteConfirm === trade.id && (
-                    <div className="absolute -top-12 right-0 w-max bg-brand-bg border border-brand-border rounded-md shadow-lg p-2 z-10">
-                        <div className="flex items-center gap-3">
-                            <span className="text-sm text-brand-text-secondary">Delete trade?</span>
-                            <button
-                                onClick={() => {
-                                onDeleteTrade(position.id, trade.id);
-                                setTradeToDeleteConfirm(null);
-                                }}
-                                className="text-xs font-bold text-brand-danger hover:underline"
-                            >
-                                Yes
-                            </button>
-                            <button
-                                onClick={() => setTradeToDeleteConfirm(null)}
-                                className="text-xs font-bold text-brand-text-primary hover:underline"
-                            >
-                                No
-                            </button>
+            {!isLedgerView && (
+                <div className="flex items-center justify-center gap-2 text-xs relative">
+                    {tradeToDeleteConfirm === trade.id && (
+                        <div className="absolute -top-12 right-0 w-max bg-brand-bg border border-brand-border rounded-md shadow-lg p-2 z-10">
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm text-brand-text-secondary">Delete trade?</span>
+                                <button
+                                    onClick={() => {
+                                    onDeleteTrade(position.id, trade.id);
+                                    setTradeToDeleteConfirm(null);
+                                    }}
+                                    className="text-xs font-bold text-brand-danger hover:underline"
+                                >
+                                    Yes
+                                </button>
+                                <button
+                                    onClick={() => setTradeToDeleteConfirm(null)}
+                                    className="text-xs font-bold text-brand-text-primary hover:underline"
+                                >
+                                    No
+                                </button>
+                            </div>
+                            <div className="absolute -bottom-2 right-4 w-0 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-brand-border"></div>
+                            <div className="absolute -bottom-[7px] right-4 w-0 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-brand-bg"></div>
                         </div>
-                        <div className="absolute -bottom-2 right-4 w-0 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-brand-border"></div>
-                        <div className="absolute -bottom-[7px] right-4 w-0 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-brand-bg"></div>
-                    </div>
-                )}
-                {!isLedgerView && (
-                  <>
-                      <button
-                      onClick={() => onEditTrade(position.id, trade.id)}
-                      className="text-brand-text-secondary hover:text-brand-primary"
-                      title="Edit Trade"
-                      aria-label="Edit Trade"
-                      >
-                      <EditIcon />
-                      </button>
-                      <button
-                      onClick={() => setTradeToDeleteConfirm(trade.id)}
-                      className="text-brand-text-secondary hover:text-brand-danger"
-                      title="Delete Trade"
-                      aria-label="Delete Trade"
-                      >
-                      <TrashIcon />
-                      </button>
-                  </>
-                )}
-            </div>
+                    )}
+                    <button
+                        onClick={() => onEditTrade(position.id, trade.id)}
+                        className="text-brand-text-secondary hover:text-brand-primary"
+                        title="Edit Trade"
+                        aria-label="Edit Trade"
+                        >
+                        <EditIcon />
+                    </button>
+                    <button
+                        onClick={() => setTradeToDeleteConfirm(trade.id)}
+                        className="text-brand-text-secondary hover:text-brand-danger"
+                        title="Delete Trade"
+                        aria-label="Delete Trade"
+                        >
+                        <TrashIcon />
+                    </button>
+                </div>
+            )}
         </div>
     );
   };
@@ -366,7 +364,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
           Toggle Trade History
         </summary>
         <div className="p-2">
-            <div className="grid grid-cols-9 gap-2 p-2 font-bold text-xs text-brand-text-secondary border-b border-brand-border">
+            <div className={`grid ${isLedgerView ? 'grid-cols-8' : 'grid-cols-9'} gap-2 p-2 font-bold text-xs text-brand-text-secondary border-b border-brand-border`}>
                 <div>Time</div>
                 <div>Action</div>
                 <div>Price</div>
@@ -375,7 +373,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
                 <div>Total</div>
                 <div>Fee</div>
                 <div className="text-center">Leverage</div>
-                <div className="text-center">Actions</div>
+                {!isLedgerView && <div className="text-center">Actions</div>}
             </div>
             {position.trades.map(trade => <TradeRow key={trade.id} trade={trade} />)}
         </div>

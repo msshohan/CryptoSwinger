@@ -47,10 +47,10 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
 
     const handleExport = () => {
         const headers = [
-            "Position ID", "Time", "Action", "Price", "Margin", "Leverage (x)",
+            "Position ID", "Time", "Pair", "Action", "Order Type", "Price", "Margin", "Leverage (x)",
             "Position (Base)", "Position (Quote)", "Trading Fee (USD)",
             "Position Total (Base)", "Position Total (Quote)", "Total PnL",
-            "Average Open", "Net ROI"
+            "Average Open", "Net ROI", "Market", "Opinion"
         ];
         
         let csvRows: string[] = [headers.join(',')];
@@ -80,7 +80,9 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
                 escapeCsvCell(totalBuyCost),
                 escapeCsvCell(totalPnl),
                 escapeCsvCell(avgOpenPrice),
-                escapeCsvCell(netRoi)
+                escapeCsvCell(netRoi),
+                escapeCsvCell(pos.market),
+                escapeCsvCell(pos.notes),
             ];
 
             pos.trades.forEach((trade, index) => {
@@ -93,7 +95,9 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
                 const tradeData = [
                     escapeCsvCell(pos.id),
                     escapeCsvCell(new Date(trade.timestamp).toISOString()),
+                    escapeCsvCell(pos.pair),
                     escapeCsvCell(trade.action),
+                    escapeCsvCell(trade.orderType),
                     escapeCsvCell(trade.price),
                     escapeCsvCell(margin),
                     escapeCsvCell(trade.leverage ? `${trade.leverage}x` : 'N/A'),
@@ -104,7 +108,7 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
 
                 const finalRow = isLastTrade
                     ? [...tradeData, ...summaryData]
-                    : [...tradeData, '', '', '', '', ''];
+                    : [...tradeData, '', '', '', '', '', '', ''];
                 
                 csvRows.push(finalRow.join(','));
             });
