@@ -37,16 +37,33 @@ function App() {
 
   const navigate = (page: Page) => setCurrentPage(page);
 
-  const handleLogin = (email?: string, password?: string) => {
+  const handleLogin = useCallback(async (email?: string, password?: string) => {
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // TODO: Replace this mock logic with a real API call to your backend
+    if (email === 'fail@example.com') {
+        throw new Error('Invalid email or password.');
+    }
+
     console.log('Logging in with:', email, password);
     setUser(MOCK_USER);
     navigate('main');
-  };
+  }, []);
 
-  const handleSignup = () => {
+  const handleSignup = useCallback(async (name?: string, email?: string, password?: string) => {
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // TODO: Replace this mock logic with a real API call to your backend
+    if (email === 'exists@example.com') {
+        throw new Error('An account with this email already exists.');
+    }
+
+    console.log('Signing up with:', name, email, password);
     setUser(MOCK_USER);
     navigate('main');
-  };
+  }, []);
   
   const handleLogout = () => {
     setUser(null);
