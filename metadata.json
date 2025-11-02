@@ -1,0 +1,5 @@
+{
+  "name": "Crypto Day Trading Calculator",
+  "description": "A comprehensive calculator for crypto day traders to calculate and track trades with exchange-specific fees, multiple market types, and detailed position logging.",
+  "requestFramePermissions": []
+}
