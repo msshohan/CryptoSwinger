@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { ExchangeName, Market, OrderType, TradeAction, Position, FeeType, Trade } from '../types';
 import { FEES, EXCHANGES, MARKETS, ORDER_TYPES } from '../constants';
@@ -61,6 +60,14 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
     const baseCurrency = useMemo(() => pair.split('/')[0]?.toUpperCase() || 'BASE', [pair]);
     const principalLabel = isLeveragedMarket ? "Margin" : "Investment";
 
+    const originalPositionDirection = useMemo(() => {
+        if (!positionToUpdate || positionToUpdate.trades.length === 0) {
+            return 'flat';
+        }
+        const sortedTrades = [...positionToUpdate.trades].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        return sortedTrades[0].action === 'Buy' ? 'long' : 'short';
+    }, [positionToUpdate]);
+
     // Effect 1: Handles form state when the editing mode changes (new vs. update/edit).
     useEffect(() => {
         if (positionToUpdate) {
@@ -75,12 +82,17 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
                 setPrice(String(tradeToEdit.price));
                 setLeverage(tradeToEdit.leverage || 1);
                 
-                if (tradeToEdit.action === 'Buy') { // Editing an opening trade
+                const isOpeningEdit = (originalPositionDirection === 'long' && tradeToEdit.action === 'Buy') || (originalPositionDirection === 'short' && tradeToEdit.action === 'Sell');
+
+                if (isOpeningEdit) {
                     setCalculationMode('total');
                     setInputValue(String(tradeToEdit.total));
+                    setCloseAmount('');
+                    setCloseTotal('');
                 } else { // Editing a closing trade
                     setCloseAmount(String(tradeToEdit.amount));
                     setCloseTotal(String(tradeToEdit.total));
+                    setInputValue('');
                 }
             } else { // ADD TO POSITION MODE
                 setAction('Buy');
@@ -105,7 +117,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
             // Set default based on the currently selected market state
             setCalculationMode(isLeveragedMarket ? 'principal' : 'total');
         }
-    }, [positionToUpdate, tradeToEdit, isLeveragedMarket]);
+    }, [positionToUpdate, tradeToEdit, isLeveragedMarket, originalPositionDirection]);
 
     // Effect 2: Handles leverage adjustment side-effect when the market changes.
     useEffect(() => {
@@ -142,7 +154,20 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
         (positionState.direction === 'short' && action === 'Buy')
     );
     
-    const isOpeningTradeAction = (!isEditMode && !isClosingPosition) || (isEditMode && action === 'Buy');
+    const isOpeningTradeAction = useMemo(() => {
+        if (!isUpdateMode) { // This is a new position, so it's always "opening"
+            return true;
+        }
+
+        if (isEditMode && tradeToEdit) { // We are editing an existing trade
+            return (originalPositionDirection === 'long' && tradeToEdit.action === 'Buy') || 
+                   (originalPositionDirection === 'short' && tradeToEdit.action === 'Sell');
+        }
+
+        // We are adding a new trade to an existing position
+        return !isClosingPosition;
+
+    }, [isUpdateMode, isEditMode, tradeToEdit, isClosingPosition, originalPositionDirection]);
 
     const { principal, amount, total } = useMemo(() => {
         const val = parseFloat(inputValue) || 0;
