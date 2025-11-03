@@ -351,8 +351,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
             <p className="font-semibold">{formatNumber(stats.positionSize)} {stats.baseCurrency}</p>
           </div>
           <div>
-            <p className="text-brand-text-secondary">Avg. Leverage</p>
-            <p className="font-semibold">{stats.avgLeverage > 1 ? `${stats.avgLeverage.toFixed(1)}x` : 'N/A'}</p>
+            <p className="text-brand-text-secondary">Remaining</p>
+            <p className="font-semibold">{formatNumber(stats.remainingAmount)} {stats.baseCurrency}</p>
           </div>
           <div>
              <p className="text-brand-text-secondary flex items-center gap-1">
@@ -362,6 +362,18 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
                 </span>
               </p>
             <p className="font-semibold">{stats.liquidationPrice > 0 ? formatCurrency(stats.liquidationPrice) : 'N/A'}</p>
+          </div>
+          <div>
+            <p className="text-brand-text-secondary">Total Borrowed</p>
+            <p className="font-semibold">{stats.totalBorrowed > 0 ? `${formatNumber(stats.totalBorrowed, 4)} ${stats.borrowedCurrency}` : 'N/A'}</p>
+          </div>
+          <div>
+            <p className="text-brand-text-secondary">Rem. Borrowed</p>
+            <p className="font-semibold">{stats.totalBorrowed > 0 ? `${formatNumber(stats.remainingBorrowed, 4)} ${stats.borrowedCurrency}` : 'N/A'}</p>
+          </div>
+          <div>
+            <p className="text-brand-text-secondary">Avg. Leverage</p>
+            <p className="font-semibold">{stats.avgLeverage > 1 ? `${stats.avgLeverage.toFixed(1)}x` : 'N/A'}</p>
           </div>
           <div>
             <p className="text-brand-text-secondary">{stats.isClosed ? 'Total PnL' : 'Realized PnL'}</p>
@@ -374,18 +386,6 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
             <p className={`font-semibold ${stats.netRoi >= 0 ? 'text-brand-success' : 'text-brand-danger'}`}>
               {stats.netRoi.toFixed(2)}%
             </p>
-          </div>
-           <div>
-            <p className="text-brand-text-secondary">Remaining</p>
-            <p className="font-semibold">{formatNumber(stats.remainingAmount)} {stats.baseCurrency}</p>
-          </div>
-          <div>
-            <p className="text-brand-text-secondary">Total Borrowed</p>
-            <p className="font-semibold">{stats.totalBorrowed > 0 ? `${formatNumber(stats.totalBorrowed, 4)} ${stats.borrowedCurrency}` : 'N/A'}</p>
-          </div>
-          <div>
-            <p className="text-brand-text-secondary">Rem. Borrowed</p>
-            <p className="font-semibold">{stats.totalBorrowed > 0 ? `${formatNumber(stats.remainingBorrowed, 4)} ${stats.borrowedCurrency}` : 'N/A'}</p>
           </div>
         </div>
       </div>
