@@ -21,6 +21,7 @@ interface TradeData {
     market: Market;
     forceClose?: boolean;
     accountBalance?: number;
+    isFutures?: boolean;
 }
 
 const MOCK_USER: User = {
@@ -73,7 +74,7 @@ function App() {
   };
 
   const handleLogTrade = useCallback((tradeData: TradeData) => {
-    const { positionId, tradeId, trade, pair, exchange, market, forceClose, accountBalance } = tradeData;
+    const { positionId, tradeId, trade, pair, exchange, market, forceClose, accountBalance, isFutures } = tradeData;
 
     setActivePositions(prevPositions => {
         let positionToUpdate: Position | undefined;
@@ -88,7 +89,7 @@ function App() {
                 positionToUpdate = { ...originalPosition, trades: updatedTrades };
             }
         } else { // Adding a new trade to an existing or new position
-            const targetId = positionId || prevPositions.find(p => p.pair === pair && p.market === market)?.id;
+            const targetId = positionId || prevPositions.find(p => p.pair === pair && p.market === market && p.isFutures === isFutures)?.id;
             
             let finalTrade = trade;
             
@@ -121,6 +122,7 @@ function App() {
                     market: market,
                     trades: [finalTrade], // finalTrade is just trade here since it's a new pos
                     accountBalance: market === 'Cross Margin' ? accountBalance : undefined,
+                    isFutures: isFutures,
                 };
                 isNewPosition = true;
             }

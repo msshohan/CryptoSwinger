@@ -1,6 +1,6 @@
 
 export type ExchangeName = 'Binance' | 'Bybit' | 'Other';
-export type Market = 'Spot' | 'Futures' | 'Cross Margin' | 'Isolated Margin' | 'Options';
+export type Market = 'Spot' | 'Cross Margin' | 'Isolated Margin' | 'Options';
 export type OrderType = 'Limit' | 'Market' | 'Stop-Limit' | 'Stop Market';
 export type TradeAction = 'Buy' | 'Sell';
 export type FeeType = 'Maker' | 'Taker' | 'Manual';
@@ -28,6 +28,7 @@ export interface Position {
   notes?: string;
   savedToLedger?: boolean;
   accountBalance?: number;
+  isFutures?: boolean;
 }
 
 export interface User {

@@ -316,7 +316,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
             <div>
                 <h3 className="text-xl font-bold">{position.pair}</h3>
                 <p className="text-xs text-brand-text-secondary">
-                    {position.exchange} &middot; {position.market}
+                    {position.exchange} &middot; {position.market} {position.isFutures && '(Futures)'}
                     {position.market === 'Cross Margin' && position.accountBalance && (
                         ` (${formatCurrency(position.accountBalance)} Balance)`
                     )}

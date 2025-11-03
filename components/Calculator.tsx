@@ -31,13 +31,14 @@ type CalculationMode = 'principal' | 'amount' | 'total';
 
 export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUpdate, tradeToEdit, cancelUpdate }) => {
     const [exchange, setExchange] = useState<ExchangeName>('Binance');
-    const [market, setMarket] = useState<Market>('Futures');
+    const [market, setMarket] = useState<Market>('Isolated Margin');
     const [orderType, setOrderType] = useState<OrderType>('Limit');
     const [action, setAction] = useState<TradeAction>('Buy');
     
     const [pair, setPair] = useState('');
     const [price, setPrice] = useState('');
     const [leverage, setLeverage] = useState(10);
+    const [isFutures, setIsFutures] = useState(true);
 
     // State for the new flexible calculator
     const [calculationMode, setCalculationMode] = useState<CalculationMode>('principal');
@@ -54,7 +55,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
 
     const isUpdateMode = !!positionToUpdate;
     const isEditMode = !!tradeToEdit;
-    const isLeveragedMarket = useMemo(() => ['Futures', 'Cross Margin', 'Isolated Margin'].includes(market), [market]);
+    const isLeveragedMarket = useMemo(() => ['Cross Margin', 'Isolated Margin'].includes(market), [market]);
     
     const quoteCurrency = useMemo(() => pair.split('/')[1]?.toUpperCase() || 'QUOTE', [pair]);
     const baseCurrency = useMemo(() => pair.split('/')[0]?.toUpperCase() || 'BASE', [pair]);
@@ -66,6 +67,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
             setPair(positionToUpdate.pair);
             setExchange(positionToUpdate.exchange);
             setMarket(positionToUpdate.market);
+            setIsFutures(positionToUpdate.isFutures || false);
             
             if (tradeToEdit) { // EDIT MODE
                 setAction(tradeToEdit.action);
@@ -87,7 +89,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
                 setCloseAmount('');
                 setCloseTotal('');
                 // Set default calculation mode based on the position's market
-                const isPosLeveraged = ['Futures', 'Cross Margin', 'Isolated Margin'].includes(positionToUpdate.market);
+                const isPosLeveraged = ['Cross Margin', 'Isolated Margin'].includes(positionToUpdate.market);
                 setCalculationMode(isPosLeveraged ? 'principal' : 'total');
             }
         } else { // NEW TRADE MODE
@@ -99,6 +101,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
             setCloseTotal('');
             setAction('Buy');
             setOrderType('Limit');
+            setIsFutures(true);
             // Set default based on the currently selected market state
             setCalculationMode(isLeveragedMarket ? 'principal' : 'total');
         }
@@ -111,6 +114,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
             if (leverage === 1) setLeverage(10);
         } else {
             setLeverage(1);
+            setIsFutures(false);
         }
     }, [market, tradeToEdit, isLeveragedMarket]);
 
@@ -183,9 +187,10 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
         }
         const isMaker = orderType === 'Limit' || orderType === 'Stop-Limit';
         const type = isMaker ? 'maker' : 'taker';
-        const fee = FEES[exchange]?.[market]?.[type] ?? 0;
+        const marketForFee = isFutures ? 'Futures' : market;
+        const fee = FEES[exchange]?.[marketForFee]?.[type] ?? 0;
         return { feeRate: fee, feeType: isMaker ? 'Maker' : 'Taker' as FeeType };
-    }, [exchange, market, orderType, manualFeeRate]);
+    }, [exchange, market, orderType, manualFeeRate, isFutures]);
 
     const feeAmount = useMemo(() => {
         const totalForFee = parseFloat(isOpeningTradeAction ? total : closeTotal) || 0;
@@ -285,6 +290,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
             pair: pair.toUpperCase(),
             exchange: exchange,
             market: market,
+            isFutures: isLeveragedMarket ? isFutures : undefined,
             forceClose,
             accountBalance: market === 'Cross Margin' ? parseFloat(accountBalance) : undefined,
         });
@@ -375,6 +381,23 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
                         {MARKETS.map(m => <option key={m} value={m}>{m}</option>)}
                     </SelectField>
                 </div>
+
+                {isLeveragedMarket && (
+                    <div className="flex items-center gap-2 -mt-2">
+                        <input
+                            type="checkbox"
+                            id="isFutures"
+                            checked={isFutures}
+                            onChange={e => setIsFutures(e.target.checked)}
+                            disabled={isUpdateMode}
+                            className="w-4 h-4 rounded bg-brand-bg border-brand-border text-brand-primary focus:ring-brand-primary focus:ring-offset-brand-surface"
+                        />
+                        <label htmlFor="isFutures" className="text-sm font-medium text-brand-text-secondary">
+                            Is Futures/Derivatives? (Uses different fee rates)
+                        </label>
+                    </div>
+                 )}
+
                 <div className="grid grid-cols-2 gap-4">
                     <SelectField label="Order Type" value={orderType} onChange={e => setOrderType(e.target.value as OrderType)}>
                         {ORDER_TYPES.map(ot => <option key={ot} value={ot}>{ot}</option>)}

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { User, Position } from '../../types';
 import { ChartBarIcon, BookmarkIcon, UserIcon, CreditCardIcon, LogoutIcon, ArrowDownTrayIcon } from '../icons';
@@ -136,6 +137,8 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
             const finalPositionSize = originalDirection === 'long' ? totalBuyAmount : totalSellAmount;
             const finalPositionValue = originalDirection === 'long' ? totalSellValue : totalBuyCost;
 
+            const marketDisplay = `${pos.market}${pos.isFutures ? ' (Futures)' : ''}`;
+
             const summaryData = [
                 escapeCsvCell(`${finalPositionSize.toFixed(8)} ${baseCurrency}`),
                 escapeCsvCell(`${finalPositionValue.toFixed(2)} ${quoteCurrency}`),
@@ -144,7 +147,7 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
                 escapeCsvCell(`${totalPnl.toFixed(2)} ${quoteCurrency}`),
                 escapeCsvCell(`${avgOpenPrice.toFixed(4)} ${quoteCurrency}`),
                 escapeCsvCell(netRoi),
-                escapeCsvCell(pos.market),
+                escapeCsvCell(marketDisplay),
                 escapeCsvCell(pos.notes),
             ];
 
