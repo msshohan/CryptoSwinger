@@ -3,14 +3,11 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Calculator } from './components/Calculator';
 import { TradeLogger } from './components/TradeLogger';
 import { Position, Trade, ExchangeName, Market, User } from './types';
-import { LoginPage } from './components/auth/LoginPage';
-import { SignupPage } from './components/auth/SignupPage';
-import { ForgotPasswordPage } from './components/auth/ForgotPasswordPage';
 import { Header } from './components/layout/Header';
 import { MyAccountPage } from './components/account/MyAccountPage';
 
 
-type Page = 'main' | 'login' | 'signup' | 'forgot-password' | 'account';
+type Page = 'main' | 'account';
 
 interface TradeData {
     positionId?: string;
@@ -31,47 +28,12 @@ const MOCK_USER: User = {
 
 
 function App() {
-  const [user, setUser] = useState<User | null>(null);
   const [currentPage, setCurrentPage] = useState<Page>('main');
-
   const [activePositions, setActivePositions] = useState<Position[]>([]);
   const [ledgerPositions, setLedgerPositions] = useState<Position[]>([]);
   const [editingState, setEditingState] = useState<{ positionId: string; tradeId?: string } | null>(null);
 
   const navigate = (page: Page) => setCurrentPage(page);
-
-  const handleLogin = useCallback(async (email?: string, password?: string) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // TODO: Replace this mock logic with a real API call to your backend
-    if (email === 'fail@example.com') {
-        throw new Error('Invalid email or password.');
-    }
-
-    console.log('Logging in with:', email, password);
-    setUser(MOCK_USER);
-    navigate('main');
-  }, []);
-
-  const handleSignup = useCallback(async (name?: string, email?: string, password?: string) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // TODO: Replace this mock logic with a real API call to your backend
-    if (email === 'exists@example.com') {
-        throw new Error('An account with this email already exists.');
-    }
-
-    console.log('Signing up with:', name, email, password);
-    setUser(MOCK_USER);
-    navigate('main');
-  }, []);
-  
-  const handleLogout = () => {
-    setUser(null);
-    navigate('main');
-  };
 
   const handleLogTrade = useCallback((tradeData: TradeData) => {
     const { positionId, tradeId, trade, pair, exchange, market, forceClose, accountBalance, isFutures } = tradeData;
@@ -228,25 +190,14 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-        case 'login':
-            return <LoginPage onLogin={handleLogin} navigate={navigate} />;
-        case 'signup':
-            return <SignupPage onSignup={handleSignup} navigate={navigate} />;
-        case 'forgot-password':
-            return <ForgotPasswordPage navigate={navigate} />;
         case 'account':
-            if (user) {
-                return (
-                    <MyAccountPage 
-                        user={user}
-                        ledgerPositions={ledgerPositions}
-                        onDeleteLedgerPosition={handleDeleteLedgerPosition}
-                        onLogout={handleLogout}
-                    />
-                );
-            }
-            // If user tries to access account page while logged out, show login page
-            return <LoginPage onLogin={handleLogin} navigate={navigate} />;
+            return (
+                <MyAccountPage 
+                    user={MOCK_USER}
+                    ledgerPositions={ledgerPositions}
+                    onDeleteLedgerPosition={handleDeleteLedgerPosition}
+                />
+            );
         case 'main':
         default:
             return (
@@ -280,11 +231,9 @@ function App() {
     }
   };
   
-  const showHeader = !['login', 'signup', 'forgot-password'].includes(currentPage);
-
   return (
     <div className="min-h-screen bg-brand-bg font-sans text-brand-text-primary">
-      {showHeader && <Header user={user} onLogout={handleLogout} navigate={navigate} />}
+      <Header user={MOCK_USER} navigate={navigate} />
       {renderPage()}
     </div>
   );

@@ -1,19 +1,15 @@
-
 import React, { useState } from 'react';
 import { User, Position } from '../../types';
-import { ChartBarIcon, BookmarkIcon, UserIcon, CreditCardIcon, LogoutIcon, ArrowDownTrayIcon } from '../icons';
+import { ChartBarIcon, BookmarkIcon, ArrowDownTrayIcon } from '../icons';
 import { Overview } from './Overview';
 import { PositionCard } from '../PositionCard';
-import { Profile } from './Profile';
-import { Billing } from './Billing';
 
-type AccountPage = 'overview' | 'ledger' | 'profile' | 'billing';
+type AccountPage = 'overview' | 'ledger';
 
 interface MyAccountPageProps {
     user: User;
     ledgerPositions: Position[];
     onDeleteLedgerPosition: (positionId: string) => void;
-    onLogout: () => void;
 }
 
 const NavItem: React.FC<{
@@ -237,10 +233,6 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
                         )}
                     </div>
                 );
-            case 'profile':
-                return <Profile user={props.user} />;
-            case 'billing':
-                return <Billing />;
             default:
                 return null;
         }
@@ -253,11 +245,6 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
                     <div className="bg-brand-surface p-4 rounded-lg border border-brand-border space-y-2">
                         <NavItem icon={<ChartBarIcon />} label="Overview" isActive={activePage === 'overview'} onClick={() => setActivePage('overview')} />
                         <NavItem icon={<BookmarkIcon />} label="Trade Ledger" isActive={activePage === 'ledger'} onClick={() => setActivePage('ledger')} />
-                        <NavItem icon={<UserIcon />} label="Profile" isActive={activePage === 'profile'} onClick={() => setActivePage('profile')} />
-                        <NavItem icon={<CreditCardIcon />} label="Billing" isActive={activePage === 'billing'} onClick={() => setActivePage('billing')} />
-                        <div className="pt-2 mt-2 border-t border-brand-border/50">
-                             <NavItem icon={<LogoutIcon />} label="Logout" isActive={false} onClick={props.onLogout} />
-                        </div>
                     </div>
                 </aside>
                 <main className="flex-grow">
