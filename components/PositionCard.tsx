@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { Position, Trade } from '../types';
 import { ArrowDownIcon, ArrowUpIcon, PlusCircleIcon, InformationCircleIcon, EditIcon, TrashIcon, BookmarkIcon, CheckCircleIcon } from './icons';
@@ -176,15 +177,26 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
 
     let liquidationPrice = 0;
     if (!isClosed && effectiveLeverage > 1) {
-      const direction = remainingAmount > 0 ? 'long' : 'short';
-      if (direction === 'long') {
-          const initialLiq = avgOpenPrice * (1 - (1 / effectiveLeverage));
-          const pnlAdjustment = remainingAmount !== 0 ? realizedPnl / remainingAmount : 0;
-          liquidationPrice = initialLiq - pnlAdjustment;
-      } else { // short
-          const initialLiq = avgOpenPrice * (1 + (1 / effectiveLeverage));
-          const pnlAdjustment = remainingAmount !== 0 ? realizedPnl / remainingAmount : 0;
-          liquidationPrice = initialLiq - pnlAdjustment;
+      if (position.market === 'Cross Margin' && position.accountBalance && position.accountBalance > 0) {
+        // More accurate liquidation price for Cross Margin
+        const availableMargin = position.accountBalance + netPnlForDisplay;
+        if (remainingAmount > 0) { // Long
+            liquidationPrice = avgOpenPrice - (availableMargin / remainingAmount);
+        } else if (remainingAmount < 0) { // Short
+            liquidationPrice = avgOpenPrice + (availableMargin / Math.abs(remainingAmount));
+        }
+      } else {
+        // Simplified liquidation price for Isolated Margin / other
+        const direction = remainingAmount > 0 ? 'long' : 'short';
+        if (direction === 'long') {
+            const initialLiq = avgOpenPrice * (1 - (1 / effectiveLeverage));
+            const pnlAdjustment = remainingAmount !== 0 ? realizedPnl / remainingAmount : 0;
+            liquidationPrice = initialLiq - pnlAdjustment;
+        } else { // short
+            const initialLiq = avgOpenPrice * (1 + (1 / effectiveLeverage));
+            const pnlAdjustment = remainingAmount !== 0 ? realizedPnl / remainingAmount : 0;
+            liquidationPrice = initialLiq - pnlAdjustment;
+        }
       }
     }
     
@@ -208,7 +220,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
       tradeBorrowingInfo,
       originalDirection
     };
-  }, [position.trades, position.pair]);
+  }, [position]);
   
   const handleConfirmSaveToLedger = (notes: string) => {
     if (onSaveToLedger) {
@@ -303,7 +315,12 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
         <div className="flex justify-between items-start">
             <div>
                 <h3 className="text-xl font-bold">{position.pair}</h3>
-                <p className="text-xs text-brand-text-secondary">{position.exchange} &middot; {position.market}</p>
+                <p className="text-xs text-brand-text-secondary">
+                    {position.exchange} &middot; {position.market}
+                    {position.market === 'Cross Margin' && position.accountBalance && (
+                        ` (${formatCurrency(position.accountBalance)} Balance)`
+                    )}
+                </p>
             </div>
             <div className="flex items-center gap-2 relative">
                 <span className={`px-3 py-1 text-xs font-semibold rounded-full ${stats.isClosed ? 'bg-gray-500 text-white' : 'bg-brand-primary text-white'}`}>
@@ -357,7 +374,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
           <div>
              <p className="text-brand-text-secondary flex items-center gap-1">
                 Liq. Price (est.)
-                <span title="Estimated liquidation price based on average open price and weighted average leverage. Does not include fees or maintenance margin.">
+                <span title="Estimated liquidation price based on average open price and weighted average leverage. Does not include fees or maintenance margin. For Cross Margin, it's based on the provided account balance.">
                   <InformationCircleIcon className="w-4 h-4 text-brand-text-secondary/80" />
                 </span>
               </p>

@@ -44,6 +44,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
     const [inputValue, setInputValue] = useState(''); // The value of the active input field
 
     // State for closing trades
+    const [accountBalance, setAccountBalance] = useState('');
     const [closeAmount, setCloseAmount] = useState('');
     const [closeTotal, setCloseTotal] = useState('');
     
@@ -94,6 +95,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
             setPrice('');
             setInputValue('');
             setCloseAmount('');
+            setAccountBalance('');
             setCloseTotal('');
             setAction('Buy');
             setOrderType('Limit');
@@ -284,6 +286,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
             exchange: exchange,
             market: market,
             forceClose,
+            accountBalance: market === 'Cross Margin' ? parseFloat(accountBalance) : undefined,
         });
     };
     
@@ -386,6 +389,10 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
                 </div>
                 <InputField label="Pair (e.g., BTC/USDT)" type="text" placeholder="BTC/USDT" value={pair} onChange={e => setPair(e.target.value)} required disabled={isUpdateMode} />
                 
+                {!isUpdateMode && market === 'Cross Margin' && (
+                    <InputField label="Account Balance" type="number" placeholder={`Total balance in ${quoteCurrency}`} value={accountBalance} onChange={e => setAccountBalance(e.target.value)} required step="any" />
+                )}
+
                 {isOpeningTradeAction ? renderOpeningTradeInputs() : renderClosingTradeInputs()}
                 
                 {exchange === 'Other' && (

@@ -27,6 +27,7 @@ export interface Position {
   trades: Trade[];
   notes?: string;
   savedToLedger?: boolean;
+  accountBalance?: number;
 }
 
 export interface User {

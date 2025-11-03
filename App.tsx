@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo } from 'react';
 import { Calculator } from './components/Calculator';
 import { TradeLogger } from './components/TradeLogger';
@@ -19,6 +20,7 @@ interface TradeData {
     exchange: ExchangeName;
     market: Market;
     forceClose?: boolean;
+    accountBalance?: number;
 }
 
 const MOCK_USER: User = {
@@ -71,7 +73,7 @@ function App() {
   };
 
   const handleLogTrade = useCallback((tradeData: TradeData) => {
-    const { positionId, tradeId, trade, pair, exchange, market, forceClose } = tradeData;
+    const { positionId, tradeId, trade, pair, exchange, market, forceClose, accountBalance } = tradeData;
 
     setActivePositions(prevPositions => {
         let positionToUpdate: Position | undefined;
@@ -118,6 +120,7 @@ function App() {
                     exchange: exchange,
                     market: market,
                     trades: [finalTrade], // finalTrade is just trade here since it's a new pos
+                    accountBalance: market === 'Cross Margin' ? accountBalance : undefined,
                 };
                 isNewPosition = true;
             }
