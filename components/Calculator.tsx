@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { ExchangeName, Market, OrderType, TradeAction, Position, FeeType, Trade } from '../types';
 import { FEES, EXCHANGES, MARKETS, ORDER_TYPES } from '../constants';
@@ -13,7 +14,7 @@ interface CalculatorProps {
 const InputField: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label: string }> = ({ label, ...props }) => (
     <div>
         <label className="block text-sm font-medium text-brand-text-secondary mb-1">{label}</label>
-        <input {...props} className="w-full bg-brand-surface border border-brand-border rounded-md px-3 py-2 text-brand-text-primary focus:ring-2 focus:ring-brand-primary focus:outline-none transition disabled:opacity-50" />
+        <input {...props} className="w-full bg-brand-bg border border-brand-border rounded-md px-3 py-2 text-brand-text-primary focus:ring-2 focus:ring-brand-primary focus:outline-none transition read-only:bg-brand-surface disabled:opacity-50" />
     </div>
 );
 
@@ -26,6 +27,8 @@ const SelectField: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { la
     </div>
 );
 
+type CalculationMode = 'principal' | 'amount' | 'total';
+
 export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUpdate, tradeToEdit, cancelUpdate }) => {
     const [exchange, setExchange] = useState<ExchangeName>('Binance');
     const [market, setMarket] = useState<Market>('Futures');
@@ -34,11 +37,16 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
     
     const [pair, setPair] = useState('');
     const [price, setPrice] = useState('');
-    const [principal, setPrincipal] = useState('');
-    const [amount, setAmount] = useState('');
-    const [total, setTotal] = useState('');
     const [leverage, setLeverage] = useState(10);
 
+    // State for the new flexible calculator
+    const [calculationMode, setCalculationMode] = useState<CalculationMode>('principal');
+    const [inputValue, setInputValue] = useState(''); // The value of the active input field
+
+    // State for closing trades
+    const [closeAmount, setCloseAmount] = useState('');
+    const [closeTotal, setCloseTotal] = useState('');
+    
     const [manualFeeRate, setManualFeeRate] = useState('0.1');
     const [closePercentage, setClosePercentage] = useState(100);
     const [forceClose, setForceClose] = useState(false);
@@ -47,90 +55,79 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
     const isEditMode = !!tradeToEdit;
     const isLeveragedMarket = useMemo(() => ['Futures', 'Cross Margin', 'Isolated Margin'].includes(market), [market]);
     
+    const quoteCurrency = useMemo(() => pair.split('/')[1]?.toUpperCase() || 'QUOTE', [pair]);
+    const baseCurrency = useMemo(() => pair.split('/')[0]?.toUpperCase() || 'BASE', [pair]);
+    const principalLabel = isLeveragedMarket ? "Margin" : "Investment";
+
     // Effect 1: Handles form state when the editing mode changes (new vs. update/edit).
     useEffect(() => {
         if (positionToUpdate) {
-            // We are in "Add to Position" or "Edit Trade" mode.
             setPair(positionToUpdate.pair);
             setExchange(positionToUpdate.exchange);
             setMarket(positionToUpdate.market);
             
-            if (tradeToEdit) {
-                // EDIT MODE: Populate form with the trade's specific data.
-                const tradeAction = tradeToEdit.action;
-                setAction(tradeAction);
+            if (tradeToEdit) { // EDIT MODE
+                setAction(tradeToEdit.action);
                 setOrderType(tradeToEdit.orderType);
                 setPrice(String(tradeToEdit.price));
                 setLeverage(tradeToEdit.leverage || 1);
                 
-                const isLeveraged = ['Futures', 'Cross Margin', 'Isolated Margin'].includes(positionToUpdate.market);
-
-                if (tradeAction === 'Buy') {
-                    const leverageUsed = tradeToEdit.leverage && isLeveraged ? tradeToEdit.leverage : 1;
-                    const originalPrincipal = tradeToEdit.total / leverageUsed;
-                    setPrincipal(String(originalPrincipal));
-                    setAmount('');
-                    setTotal('');
-                } else { // Sell action
-                    setAmount(String(tradeToEdit.amount));
-                    setTotal(String(tradeToEdit.total));
-                    setPrincipal('');
+                if (tradeToEdit.action === 'Buy') { // Editing an opening trade
+                    setCalculationMode('total');
+                    setInputValue(String(tradeToEdit.total));
+                } else { // Editing a closing trade
+                    setCloseAmount(String(tradeToEdit.amount));
+                    setCloseTotal(String(tradeToEdit.total));
                 }
-            } else {
-                // ADD TO POSITION MODE: Reset trade-specific fields.
+            } else { // ADD TO POSITION MODE
                 setAction('Buy');
                 setPrice('');
-                setPrincipal('');
-                setAmount('');
-                setTotal('');
+                setInputValue('');
+                setCloseAmount('');
+                setCloseTotal('');
+                // Set default calculation mode based on the position's market
+                const isPosLeveraged = ['Futures', 'Cross Margin', 'Isolated Margin'].includes(positionToUpdate.market);
+                setCalculationMode(isPosLeveraged ? 'principal' : 'total');
             }
-        } else {
-            // NEW TRADE MODE: This block runs when `positionToUpdate` becomes null.
-            // Reset fields for the next new trade.
+        } else { // NEW TRADE MODE
             setPair('');
             setPrice('');
-            setPrincipal('');
-            setAmount('');
-            setTotal('');
+            setInputValue('');
+            setCloseAmount('');
+            setCloseTotal('');
             setAction('Buy');
             setOrderType('Limit');
+            // Set default based on the currently selected market state
+            setCalculationMode(isLeveragedMarket ? 'principal' : 'total');
         }
-    }, [positionToUpdate, tradeToEdit]);
+    }, [positionToUpdate, tradeToEdit, isLeveragedMarket]);
 
     // Effect 2: Handles leverage adjustment side-effect when the market changes.
     useEffect(() => {
-        // Do not adjust leverage automatically if we are in edit mode.
         if (tradeToEdit) return;
-
         if (isLeveragedMarket) {
-            // If we switched to a leveraged market and leverage is 1, it's likely
-            // we came from a non-leveraged market. Default to 10x.
-            // Otherwise, keep the user's existing leverage setting.
-            if (leverage === 1) {
-                setLeverage(10);
-            }
+            if (leverage === 1) setLeverage(10);
         } else {
-            // If we are on a non-leveraged market, force leverage to 1.
             setLeverage(1);
         }
-    }, [market, tradeToEdit]);
+    }, [market, tradeToEdit, isLeveragedMarket]);
 
+    // Effect 3: Switch calculation mode if it's invalid for the selected market.
+    useEffect(() => {
+        if (!isLeveragedMarket && calculationMode === 'principal') {
+            handleModeChange('total');
+        }
+    }, [isLeveragedMarket, calculationMode]);
 
     const positionState = useMemo(() => {
-        if (!positionToUpdate) {
-            return { direction: 'flat', remainingAmount: 0 };
-        }
+        if (!positionToUpdate) return { direction: 'flat', remainingAmount: 0 };
         const totalBuy = positionToUpdate.trades.filter(t => t.action === 'Buy').reduce((sum, t) => sum + t.amount, 0);
         const totalSell = positionToUpdate.trades.filter(t => t.action === 'Sell').reduce((sum, t) => sum + t.amount, 0);
         const remainingAmount = totalBuy - totalSell;
         
-        if (Math.abs(remainingAmount) < 1e-9) {
-            return { direction: 'flat', remainingAmount: 0 };
-        }
-        
         return {
-            direction: remainingAmount > 0 ? 'long' : 'short',
-            remainingAmount: remainingAmount,
+            direction: Math.abs(remainingAmount) < 1e-9 ? 'flat' : remainingAmount > 0 ? 'long' : 'short',
+            remainingAmount,
         };
     }, [positionToUpdate]);
     
@@ -139,26 +136,44 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
         (positionState.direction === 'short' && action === 'Buy')
     );
     
-    const showForceCloseCheckbox = useMemo(() => {
-        if (!isClosingPosition || isEditMode) return false;
-        const numAmount = parseFloat(amount) || 0;
-        const remaining = Math.abs(positionState.remainingAmount);
-        if (numAmount === 0 || remaining === 0) return false;
-        
-        const difference = Math.abs(numAmount - remaining);
-        // Show if there is a small, non-zero difference (typical of floating point issues)
-        return difference > 0 && difference < 1e-6; 
-    }, [isClosingPosition, isEditMode, amount, positionState.remainingAmount]);
-
-    // Reset forceClose state if the conditions for showing it are no longer met
-    useEffect(() => {
-        if (!showForceCloseCheckbox) {
-            setForceClose(false);
-        }
-    }, [showForceCloseCheckbox]);
-
-
     const isOpeningTradeAction = (!isEditMode && !isClosingPosition) || (isEditMode && action === 'Buy');
+
+    const { principal, amount, total } = useMemo(() => {
+        const val = parseFloat(inputValue) || 0;
+        const numPrice = parseFloat(price) || 1;
+        const numLeverage = isLeveragedMarket ? leverage : 1;
+
+        if (val === 0 || numPrice <= 0) return { principal: '', amount: '', total: '' };
+
+        let p = 0, a = 0, t = 0;
+        const mode = calculationMode;
+
+        if (mode === 'principal') {
+            p = val;
+            t = p * numLeverage;
+            a = t / numPrice;
+        } else if (mode === 'amount') {
+            a = val;
+            t = a * numPrice;
+            p = t / numLeverage;
+        } else { // mode === 'total'
+            t = val;
+            a = t / numPrice;
+            p = t / numLeverage;
+        }
+
+        return {
+            principal: p.toFixed(4),
+            amount: a.toFixed(8),
+            total: t.toFixed(4),
+        };
+    }, [inputValue, calculationMode, price, leverage, isLeveragedMarket]);
+
+    const handleModeChange = (newMode: CalculationMode) => {
+        const newInputValue = { principal, amount, total }[newMode] || '';
+        setInputValue(newInputValue);
+        setCalculationMode(newMode);
+    };
 
     const { feeRate, feeType } = useMemo(() => {
         if (exchange === 'Other') {
@@ -170,103 +185,59 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
         return { feeRate: fee, feeType: isMaker ? 'Maker' : 'Taker' as FeeType };
     }, [exchange, market, orderType, manualFeeRate]);
 
-    const { finalAmount, finalTotal, feeAmount, marginUsed } = useMemo(() => {
-        if (isOpeningTradeAction) {
-            const numPrincipal = parseFloat(principal) || 0;
-            const numPrice = parseFloat(price) || 1;
-            const calculatedTotal = numPrincipal * (isLeveragedMarket ? leverage : 1);
-            const calculatedAmount = numPrice > 0 ? calculatedTotal / numPrice : 0;
-            const fee = calculatedTotal * feeRate;
-            const margin = numPrincipal;
-            return {
-                finalAmount: calculatedAmount,
-                finalTotal: calculatedTotal,
-                feeAmount: fee,
-                marginUsed: margin,
-            };
-        } else { // Closing positions (new or edit)
-            const currentTotal = parseFloat(total) || 0;
-            const fee = currentTotal * feeRate;
-            return {
-                finalAmount: parseFloat(amount) || 0,
-                finalTotal: currentTotal,
-                feeAmount: fee,
-                marginUsed: 0,
-            };
-        }
-    }, [isOpeningTradeAction, total, amount, principal, price, feeRate, leverage, isLeveragedMarket]);
+    const feeAmount = useMemo(() => {
+        const totalForFee = parseFloat(isOpeningTradeAction ? total : closeTotal) || 0;
+        return totalForFee * feeRate;
+    }, [total, closeTotal, feeRate, isOpeningTradeAction]);
 
     useEffect(() => {
         if (isClosingPosition) {
             const remaining = positionState.remainingAmount;
             const closeAmountVal = (Math.abs(remaining) * (closePercentage / 100));
             const closeAmountStr = closeAmountVal.toFixed(8);
-            
-            setAmount(closeAmountStr);
-
-            const numPrice = parseFloat(price) || 0;
-            const newTotal = (parseFloat(closeAmountStr) * numPrice).toString();
-            if (!isNaN(parseFloat(newTotal))) setTotal(newTotal);
+            setCloseAmount(closeAmountStr);
         }
-    }, [closePercentage, isClosingPosition, positionState.remainingAmount, price]);
-    
-    const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newAmount = e.target.value;
-        setAmount(newAmount);
+    }, [closePercentage, isClosingPosition, positionState.remainingAmount]);
+
+    useEffect(() => {
         const numPrice = parseFloat(price) || 0;
-        const newTotal = (parseFloat(newAmount) * numPrice).toString();
-        if (!isNaN(parseFloat(newTotal))) setTotal(newTotal);
-    };
-
-    const handleTotalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newTotal = e.target.value;
-        setTotal(newTotal);
-        const numPrice = parseFloat(price) || 1;
-        const newAmount = (parseFloat(newTotal) / numPrice).toString();
-        if (!isNaN(parseFloat(newAmount))) setAmount(newAmount);
-    };
-    
-    const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newPrice = e.target.value;
-        setPrice(newPrice);
-        if(!isOpeningTradeAction){ // For closing trades (new or edit)
-            const newTotal = (parseFloat(amount) * parseFloat(newPrice)).toString();
-            if (!isNaN(parseFloat(newTotal))) setTotal(newTotal);
+        const numAmount = parseFloat(isClosingPosition ? closeAmount : '') || 0;
+        if(numPrice > 0 && numAmount > 0) {
+            const newTotal = numAmount * numPrice;
+            setCloseTotal(newTotal.toFixed(4));
         }
-    };
+    }, [closeAmount, price, isClosingPosition])
+
+    const showForceCloseCheckbox = useMemo(() => {
+        if (!isClosingPosition || isEditMode) return false;
+        const numAmount = parseFloat(closeAmount) || 0;
+        const remaining = Math.abs(positionState.remainingAmount);
+        if (numAmount === 0 || remaining === 0) return false;
+        const difference = Math.abs(numAmount - remaining);
+        return difference > 0 && difference < 1e-6; 
+    }, [isClosingPosition, isEditMode, closeAmount, positionState.remainingAmount]);
+
+    useEffect(() => { if (!showForceCloseCheckbox) setForceClose(false); }, [showForceCloseCheckbox]);
     
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
         const numPrice = parseFloat(price);
-        const numAmount = isOpeningTradeAction ? finalAmount : (parseFloat(amount) || 0);
-        const numTotal = isOpeningTradeAction ? finalTotal : (parseFloat(total) || 0);
-        const finalFee = numTotal * feeRate;
+        const numAmount = parseFloat(isOpeningTradeAction ? amount : closeAmount);
+        const numTotal = parseFloat(isOpeningTradeAction ? total : closeTotal);
+        const numPrincipal = parseFloat(principal);
 
         if (!pair || isNaN(numPrice) || numPrice <= 0 || isNaN(numAmount) || numAmount <= 0 || isNaN(numTotal) || numTotal < 0) {
-            alert('Please ensure Pair, Price, Amount are valid positive numbers, and Total is not negative.');
+            alert('Please ensure Pair, Price, Amount, and Total are valid positive numbers.');
             return;
         }
 
-        if (isOpeningTradeAction) {
-            const numPrincipal = parseFloat(principal);
-            if (isNaN(numPrincipal) || numPrincipal <= 0) {
-                alert(`Please fill in ${isLeveragedMarket ? "Margin" : "Investment Amount"} with a valid positive number.`);
-                return;
-            }
+        if (isOpeningTradeAction && (isNaN(numPrincipal) || numPrincipal <= 0)) {
+            alert(`Please fill in a valid positive number for ${principalLabel}, Amount or Total.`);
+            return;
         }
 
-        const getLeverageForSubmission = () => {
-            if (!isLeveragedMarket) return undefined;
-            if (isEditMode) {
-                // When editing an opening trade, leverage is from the slider.
-                // When editing a closing trade, preserve original leverage.
-                if (tradeToEdit?.action === 'Buy') return leverage;
-                return tradeToEdit?.leverage;
-            }
-            if (isClosingPosition) return undefined; // No new leverage on closing trades.
-            return leverage; // New or adding an opening trade
-        };
+        const finalFee = numTotal * feeRate;
 
         onLogTrade({
             positionId: positionToUpdate?.id,
@@ -281,28 +252,88 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
                 feeRate,
                 feeType,
                 timestamp: tradeToEdit?.timestamp || new Date(),
-                leverage: getLeverageForSubmission(),
+                leverage: isLeveragedMarket ? leverage : undefined,
                 orderType: orderType,
             },
             pair: pair.toUpperCase(),
             exchange: exchange,
             market: market,
-            forceClose: forceClose,
+            forceClose,
         });
+    };
+    
+    const renderOpeningTradeInputs = () => {
+        const modeButtonClass = "flex-1 p-2 text-xs font-semibold transition rounded-md";
+        const activeClass = "bg-brand-primary text-white";
+        const inactiveClass = "bg-brand-bg hover:bg-white/10";
+        
+        const calculationModes: CalculationMode[] = isLeveragedMarket 
+            ? ['principal', 'amount', 'total'] 
+            : ['amount', 'total'];
+        
+        return (
+            <div className="space-y-4">
+                <InputField label="Price" type="number" placeholder={`Price in ${quoteCurrency}`} value={price} onChange={e => setPrice(e.target.value)} required step="any" />
 
+                <div className="bg-black/20 p-3 rounded-md space-y-3">
+                    <div>
+                        <label className="block text-sm font-medium text-brand-text-secondary mb-2">Calculate Position By</label>
+                        <div className={`grid ${isLeveragedMarket ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-md bg-brand-bg p-1 border border-brand-border`}>
+                            {isLeveragedMarket && (
+                                <button type="button" onClick={() => handleModeChange('principal')} className={`${modeButtonClass} ${calculationMode === 'principal' ? activeClass : inactiveClass}`} disabled={isEditMode}>{principalLabel}</button>
+                            )}
+                            <button type="button" onClick={() => handleModeChange('amount')} className={`${modeButtonClass} ${calculationMode === 'amount' ? activeClass : inactiveClass}`} disabled={isEditMode}>Amount</button>
+                            <button type="button" onClick={() => handleModeChange('total')} className={`${modeButtonClass} ${calculationMode === 'total' ? activeClass : inactiveClass}`} disabled={isEditMode}>Total</button>
+                        </div>
+                    </div>
+                    
+                    {isLeveragedMarket && (
+                        <InputField label={principalLabel} type="number" value={calculationMode === 'principal' ? inputValue : principal} onChange={e => setInputValue(e.target.value)} readOnly={calculationMode !== 'principal'} step="any" placeholder={`Your capital in ${quoteCurrency}`} />
+                    )}
+                    <InputField label={`Amount (${baseCurrency})`} type="number" value={calculationMode === 'amount' ? inputValue : amount} onChange={e => setInputValue(e.target.value)} readOnly={calculationMode !== 'amount'} step="any" placeholder={`Quantity of ${baseCurrency}`} />
+                    <InputField label={`Total (${quoteCurrency})`} type="number" value={calculationMode === 'total' ? inputValue : total} onChange={e => setInputValue(e.target.value)} readOnly={calculationMode !== 'total'} step="any" placeholder={`Total position value in ${quoteCurrency}`} />
+                </div>
+
+                {isLeveragedMarket && (
+                    <div>
+                        <label className="block text-sm font-medium text-brand-text-secondary mb-1">Leverage: {leverage}x</label>
+                        <input type="range" min="1" max="125" value={leverage} onChange={e => setLeverage(parseInt(e.target.value))} className="w-full h-2 bg-brand-border rounded-lg appearance-none cursor-pointer accent-brand-primary" />
+                    </div>
+                )}
+            </div>
+        );
     };
 
-    const quoteCurrency = pair.split('/')[1] || 'Quote';
-    const baseCurrency = pair.split('/')[0] || 'Base';
-    const showCalculatedSummary = isOpeningTradeAction;
-    const principalLabel = isLeveragedMarket ? "Margin" : "Investment Amount";
+    const renderClosingTradeInputs = () => (
+        <>
+            <InputField label="Price" type="number" placeholder="Price" value={price} onChange={e => setPrice(e.target.value)} required step="any" />
+            <div className="grid grid-cols-2 gap-4">
+                <InputField label={`Amount (${baseCurrency})`} type="number" placeholder="0.1" value={closeAmount} onChange={e => setCloseAmount(e.target.value)} required step="any" />
+                <InputField label={`Total (${quoteCurrency})`} type="number" placeholder="6000" value={closeTotal} onChange={e => setCloseTotal(e.target.value)} required step="any" />
+            </div>
+            {isClosingPosition && !isEditMode && (
+                <div>
+                    <label className="block text-sm font-medium text-brand-text-secondary mb-1">Close Percentage: {closePercentage}%</label>
+                    <input type="range" min="1" max="100" value={closePercentage} onChange={e => setClosePercentage(parseInt(e.target.value))} className="w-full h-2 bg-brand-border rounded-lg appearance-none cursor-pointer accent-brand-primary" />
+                </div>
+            )}
+             {isClosingPosition && showForceCloseCheckbox && (
+                <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-300 p-3 rounded-md text-sm mt-4">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked={forceClose} onChange={(e) => setForceClose(e.target.checked)} className="w-4 h-4 rounded bg-brand-bg border-brand-border text-brand-primary focus:ring-brand-primary focus:ring-offset-0" />
+                        <span>Position has a tiny remainder. Check this to force close it to exactly zero.</span>
+                    </label>
+                </div>
+            )}
+        </>
+    );
 
     return (
         <div className="bg-brand-surface p-6 rounded-lg shadow-lg border border-brand-border h-full">
             <div className="flex justify-between items-center mb-4">
-                 <h2 className="text-2xl font-bold">{isEditMode ? `Edit Trade in ${positionToUpdate?.pair}` : isUpdateMode ? `Update ${positionToUpdate?.pair}` : 'New Trade Calculator'}</h2>
+                 <h2 className="text-2xl font-bold">{isEditMode ? `Edit Trade` : isUpdateMode ? `Update Position` : 'New Trade Calculator'}</h2>
                  {isUpdateMode && (
-                    <button onClick={cancelUpdate} className="text-brand-text-secondary hover:text-brand-danger transition-colors">
+                    <button onClick={cancelUpdate} className="text-brand-text-secondary hover:text-brand-danger transition-colors" aria-label="Cancel update">
                         <XCircleIcon />
                     </button>
                  )}
@@ -329,55 +360,8 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
                     </div>
                 </div>
                 <InputField label="Pair (e.g., BTC/USDT)" type="text" placeholder="BTC/USDT" value={pair} onChange={e => setPair(e.target.value)} required disabled={isUpdateMode} />
-                <InputField label="Price" type="number" placeholder="Price" value={price} onChange={handlePriceChange} required step="any" />
                 
-                { (isEditMode && action === 'Sell') || isClosingPosition ? (
-                    // This block is for all closing trades (new or edit)
-                     <>
-                        <div className="grid grid-cols-2 gap-4">
-                            <InputField label="Amount" type="number" placeholder="0.1" value={amount} onChange={handleAmountChange} required step="any" />
-                            <InputField label="Total" type="number" placeholder="6000" value={total} onChange={handleTotalChange} required step="any" />
-                        </div>
-                        {isClosingPosition && !isEditMode && (
-                            <div>
-                                <label className="block text-sm font-medium text-brand-text-secondary mb-1">Close Percentage: {closePercentage}%</label>
-                                <input type="range" min="1" max="100" value={closePercentage} onChange={e => setClosePercentage(parseInt(e.target.value))} className="w-full h-2 bg-brand-border rounded-lg appearance-none cursor-pointer accent-brand-primary" />
-                            </div>
-                        )}
-                         {isClosingPosition && showForceCloseCheckbox && (
-                            <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-300 p-3 rounded-md text-sm mt-4">
-                                <label className="flex items-center gap-3 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={forceClose}
-                                        onChange={(e) => setForceClose(e.target.checked)}
-                                        className="w-4 h-4 rounded bg-brand-bg border-brand-border text-brand-primary focus:ring-brand-primary focus:ring-offset-0"
-                                    />
-                                    <span>
-                                        Position has a tiny remainder. Check this to force close it to exactly zero.
-                                    </span>
-                                </label>
-                            </div>
-                        )}
-                        {isEditMode && tradeToEdit?.leverage && tradeToEdit.leverage > 1 && isLeveragedMarket && (
-                           <div>
-                                <label className="block text-sm font-medium text-brand-text-secondary mb-1">Original Leverage</label>
-                                <p className="w-full bg-brand-surface/50 border border-brand-border rounded-md px-3 py-2 text-brand-text-secondary">{tradeToEdit.leverage}x (not editable)</p>
-                           </div>
-                        )}
-                    </>
-                ) : (
-                    // This block is for all opening trades (new, add, or edit)
-                     <>
-                        <InputField label={principalLabel} type="number" placeholder="1000" value={principal} onChange={(e) => setPrincipal(e.target.value)} required step="any" />
-                        {isLeveragedMarket && (
-                            <div>
-                                <label className="block text-sm font-medium text-brand-text-secondary mb-1">Leverage: {leverage}x</label>
-                                <input type="range" min="1" max="125" value={leverage} onChange={e => setLeverage(parseInt(e.target.value))} className="w-full h-2 bg-brand-border rounded-lg appearance-none cursor-pointer accent-brand-primary" />
-                            </div>
-                        )}
-                    </>
-                )}
+                {isOpeningTradeAction ? renderOpeningTradeInputs() : renderClosingTradeInputs()}
                 
                 {exchange === 'Other' && (
                     <InputField label="Manual Fee Rate (%)" type="number" value={manualFeeRate} onChange={e => setManualFeeRate(e.target.value)} step="any" />
@@ -386,15 +370,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
                 <div className="text-center text-sm text-brand-text-secondary pt-2 space-y-1 bg-black/20 p-3 rounded-md">
                     <p>Fee Type: <span className="font-semibold text-brand-text-primary">{feeType}</span></p>
                     <p>Fee Rate: <span className="font-semibold text-brand-text-primary">{(feeRate * 100).toFixed(4)}%</span></p>
-                    <p>Estimated Fee: <span className="font-semibold text-brand-text-primary">{feeAmount.toFixed(8)}</span></p>
-                    
-                    {showCalculatedSummary && (
-                        <>
-                            {isLeveragedMarket && <p>Margin Used: <span className="font-semibold text-brand-text-primary">{marginUsed.toFixed(4)} {quoteCurrency}</span></p>}
-                            <p className="mt-2 pt-2 border-t border-brand-border/50">Calculated Total: <span className="font-semibold text-brand-text-primary">{finalTotal.toFixed(2)} {quoteCurrency}</span></p>
-                            <p>Calculated Amount: <span className="font-semibold text-brand-text-primary">{finalAmount.toFixed(8)} {baseCurrency}</span></p>
-                        </>
-                    )}
+                    <p>Estimated Fee: <span className="font-semibold text-brand-text-primary">{feeAmount.toFixed(8)} {quoteCurrency}</span></p>
                 </div>
 
                 <button type="submit" className={`w-full py-3 px-4 text-white font-semibold rounded-md transition-colors ${action === 'Buy' ? 'bg-brand-success hover:bg-green-500' : 'bg-brand-danger hover:bg-red-500'}`}>
