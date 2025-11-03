@@ -245,21 +245,48 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
     const isReducingTrade = (stats.originalDirection === 'long' && trade.action === 'Sell') || (stats.originalDirection === 'short' && trade.action === 'Buy');
 
     return (
-        <div className={`grid ${isLedgerView ? 'grid-cols-9' : 'grid-cols-10'} gap-2 p-2 border-b border-brand-border/50 text-sm items-center`}>
-            <div>{new Date(trade.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-            <div className={`flex items-center gap-1 font-semibold ${trade.action === 'Buy' ? 'text-brand-success' : 'text-brand-danger'}`}>
-                {trade.action === 'Buy' ? <ArrowUpIcon /> : <ArrowDownIcon />}
-                {trade.action}
+        <div className={`block space-y-1 p-3 border-b border-brand-border/50 text-sm md:grid md:space-y-0 md:p-2 md:gap-2 md:items-center ${isLedgerView ? 'md:grid-cols-9' : 'md:grid-cols-10'}`}>
+            <div className="flex justify-between items-center md:block">
+                <span className="font-semibold text-brand-text-secondary md:hidden">Time</span>
+                <span>{new Date(trade.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
-            <div>{formatCurrency(trade.price)}</div>
-            <div>{isReducingTrade ? '-' : formatCurrency(margin)}</div>
-            <div>{borrowingDisplay}</div>
-            <div>{formatNumber(trade.amount)}</div>
-            <div>{formatCurrency(trade.total)}</div>
-            <div>{formatCurrency(trade.fee).substring(1)}</div>
-            <div className="text-center">{isReducingTrade ? '-' : (trade.leverage ? `${trade.leverage}x` : '-')}</div>
+            <div className="flex justify-between items-center md:block">
+                <span className="font-semibold text-brand-text-secondary md:hidden">Action</span>
+                <div className={`flex items-center gap-1 font-semibold ${trade.action === 'Buy' ? 'text-brand-success' : 'text-brand-danger'}`}>
+                    {trade.action === 'Buy' ? <ArrowUpIcon /> : <ArrowDownIcon />}
+                    {trade.action}
+                </div>
+            </div>
+             <div className="flex justify-between items-center md:block">
+                <span className="font-semibold text-brand-text-secondary md:hidden">Price</span>
+                <span>{formatCurrency(trade.price)}</span>
+            </div>
+            <div className="flex justify-between items-center md:block">
+                <span className="font-semibold text-brand-text-secondary md:hidden">Margin</span>
+                <span>{isReducingTrade ? '-' : formatCurrency(margin)}</span>
+            </div>
+            <div className="flex justify-between items-center md:block">
+                <span className="font-semibold text-brand-text-secondary md:hidden">Borrowed</span>
+                <span>{borrowingDisplay}</span>
+            </div>
+            <div className="flex justify-between items-center md:block">
+                <span className="font-semibold text-brand-text-secondary md:hidden">Amount</span>
+                <span>{formatNumber(trade.amount)}</span>
+            </div>
+            <div className="flex justify-between items-center md:block">
+                <span className="font-semibold text-brand-text-secondary md:hidden">Total</span>
+                <span>{formatCurrency(trade.total)}</span>
+            </div>
+            <div className="flex justify-between items-center md:block">
+                <span className="font-semibold text-brand-text-secondary md:hidden">Fee</span>
+                <span>{formatCurrency(trade.fee).substring(1)}</span>
+            </div>
+            <div className="flex justify-between items-center md:block md:text-center">
+                <span className="font-semibold text-brand-text-secondary md:hidden">Leverage</span>
+                <span>{isReducingTrade ? '-' : (trade.leverage ? `${trade.leverage}x` : '-')}</span>
+            </div>
             {!isLedgerView && (
-                <div className="flex items-center justify-center gap-2 text-xs relative">
+                <div className="flex justify-end items-center gap-2 text-xs relative pt-2 mt-2 border-t border-brand-border/50 md:border-t-0 md:pt-0 md:mt-0 md:justify-center">
                     {tradeToDeleteConfirm === trade.id && (
                         <div className="absolute -top-12 right-0 w-max bg-brand-bg border border-brand-border rounded-md shadow-lg p-2 z-10">
                             <div className="flex items-center gap-3">
@@ -419,7 +446,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
           Toggle Trade History
         </summary>
         <div className="p-2">
-            <div className={`grid ${isLedgerView ? 'grid-cols-9' : 'grid-cols-10'} gap-2 p-2 font-bold text-xs text-brand-text-secondary border-b border-brand-border`}>
+            <div className={`hidden md:grid ${isLedgerView ? 'md:grid-cols-9' : 'md:grid-cols-10'} gap-2 p-2 font-bold text-xs text-brand-text-secondary border-b border-brand-border`}>
                 <div>Time</div>
                 <div>Action</div>
                 <div>Price</div>
