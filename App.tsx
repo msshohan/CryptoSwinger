@@ -196,10 +196,16 @@ function App() {
   
   const handleAddTradeToPosition = useCallback((positionId: string) => {
     setEditingState({ positionId });
+    if (window.innerWidth < 1024) { // Corresponds to Tailwind's 'lg' breakpoint
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }, []);
 
   const handleEditTrade = useCallback((positionId: string, tradeId: string) => {
     setEditingState({ positionId, tradeId });
+    if (window.innerWidth < 1024) { // Corresponds to Tailwind's 'lg' breakpoint
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }, []);
 
   const handleCancelUpdate = useCallback(() => {
