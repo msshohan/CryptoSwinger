@@ -22,7 +22,10 @@ const formatCurrency = (value: number) => {
 };
 
 const formatNumber = (value: number, precision: number = 8) => {
-    return value.toFixed(precision).replace(/\.?0+$/, "");
+    const fixedValue = value.toFixed(precision);
+    // Avoids returning "-0.00" for very small negative numbers
+    if (parseFloat(fixedValue) === 0) return (0).toFixed(precision).replace(/\.?0+$/, "");
+    return fixedValue.replace(/\.?0+$/, "");
 };
 
 const SaveToLedgerModal: React.FC<{
@@ -68,36 +71,81 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
   const [showNotesModal, setShowNotesModal] = useState(false);
 
   const stats = useMemo(() => {
-    let totalBuyAmount = 0;
-    let totalBuyCost = 0;
-    let totalSellAmount = 0;
-    let totalSellValue = 0;
-    let totalFees = 0;
-    let totalBorrowedQuote = 0;
-    let totalBorrowedBase = 0;
+    const tradesSorted = [...position.trades].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    
+    if (tradesSorted.length === 0) {
+      return {
+        positionSize: 0, remainingAmount: 0, isClosed: false, avgOpenPrice: 0, realizedPnl: 0,
+        quoteCurrency: 'USD', baseCurrency: '', avgLeverage: 1, liquidationPrice: 0,
+        netRoi: 0, totalBorrowed: 0, borrowedCurrency: 'USD', remainingBorrowed: 0, tradeBorrowingInfo: {},
+        originalDirection: 'flat' as 'long' | 'short' | 'flat'
+      };
+    }
 
-    let totalWeightedBuyLeverage = 0;
-    let totalBuyValueForLeverage = 0;
-    let totalWeightedSellLeverage = 0;
-    let totalSellValueForLeverage = 0;
+    const originalDirection = tradesSorted[0].action === 'Buy' ? 'long' : 'short';
+    const quoteCurrency = position.pair.split('/')[1] || 'USD';
+    const baseCurrency = position.pair.split('/')[0] || '';
+    
+    let totalBuyAmount = 0, totalBuyCost = 0, totalSellAmount = 0, totalSellValue = 0, totalFees = 0;
+    let totalWeightedBuyLeverage = 0, totalBuyValueForLeverage = 0, totalWeightedSellLeverage = 0, totalSellValueForLeverage = 0;
+    let totalInvestment = 0;
+    
+    // Chronological borrowing calculation
+    let totalBorrowed = 0;
+    let remainingBorrowed = 0;
+    const tradeBorrowingInfo: { [key: string]: { amount: number; currency: string } } = {};
 
-    position.trades.forEach(trade => {
+    tradesSorted.forEach(trade => {
       totalFees += trade.fee;
+      const leverage = trade.leverage && trade.leverage > 1 ? trade.leverage : 1;
+
+      if ((originalDirection === 'long' && trade.action === 'Buy') || (originalDirection === 'short' && trade.action === 'Sell')) {
+        totalInvestment += trade.total / leverage;
+      }
+      
       if (trade.action === 'Buy') {
         totalBuyAmount += trade.amount;
         totalBuyCost += trade.total;
-        if (trade.leverage && trade.leverage > 1) {
-            totalWeightedBuyLeverage += trade.total * trade.leverage;
+        if (leverage > 1) {
+            totalWeightedBuyLeverage += trade.total * leverage;
             totalBuyValueForLeverage += trade.total;
-            totalBorrowedQuote += trade.total - (trade.total / trade.leverage);
         }
       } else { // Sell
         totalSellAmount += trade.amount;
         totalSellValue += trade.total;
-        if (trade.leverage && trade.leverage > 1) {
-            totalWeightedSellLeverage += trade.total * trade.leverage;
+        if (leverage > 1) {
+            totalWeightedSellLeverage += trade.total * leverage;
             totalSellValueForLeverage += trade.total;
-            totalBorrowedBase += trade.amount;
+        }
+      }
+
+      if (leverage > 1) {
+        if (originalDirection === 'long') {
+          if (trade.action === 'Buy') {
+            const borrowedThisTrade = trade.total * (1 - 1/leverage);
+            remainingBorrowed += borrowedThisTrade;
+            totalBorrowed += borrowedThisTrade;
+            tradeBorrowingInfo[trade.id] = { amount: borrowedThisTrade, currency: quoteCurrency };
+          } else { // Sell
+            const repaymentAmount = Math.min(trade.total, remainingBorrowed);
+            if (repaymentAmount > 0) {
+              remainingBorrowed -= repaymentAmount;
+              tradeBorrowingInfo[trade.id] = { amount: -repaymentAmount, currency: quoteCurrency };
+            }
+          }
+        } else { // Short position
+          if (trade.action === 'Sell') {
+            const borrowedThisTrade = trade.amount * (1 - 1/leverage);
+            remainingBorrowed += borrowedThisTrade;
+            totalBorrowed += borrowedThisTrade;
+            tradeBorrowingInfo[trade.id] = { amount: borrowedThisTrade, currency: baseCurrency };
+          } else { // Buy to cover
+            const repaymentAmount = Math.min(trade.amount, remainingBorrowed);
+            if (repaymentAmount > 0) {
+              remainingBorrowed -= repaymentAmount;
+              tradeBorrowingInfo[trade.id] = { amount: -repaymentAmount, currency: baseCurrency };
+            }
+          }
         }
       }
     });
@@ -105,85 +153,43 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
     const remainingAmount = totalBuyAmount - totalSellAmount;
     const isClosed = Math.abs(remainingAmount) <= 1e-9 && totalBuyAmount > 0 && totalSellAmount > 0;
     
-    const direction = isClosed 
-        ? 'flat' 
-        : remainingAmount > 0 ? 'long' : 'short';
-
     const avgBuyPrice = totalBuyAmount > 0 ? totalBuyCost / totalBuyAmount : 0;
     const avgSellPrice = totalSellAmount > 0 ? totalSellValue / totalSellAmount : 0;
     
     const avgBuyLeverage = totalBuyValueForLeverage > 0 ? totalWeightedBuyLeverage / totalBuyValueForLeverage : 1;
     const avgSellLeverage = totalSellValueForLeverage > 0 ? totalWeightedSellLeverage / totalSellValueForLeverage : 1;
-
-    const originalDirection = position.trades.length > 0 && position.trades[0].action === 'Buy' ? 'long' : 'short';
-
-    let effectiveLeverage;
-    if (isClosed) {
-        effectiveLeverage = originalDirection === 'long' ? avgBuyLeverage : avgSellLeverage;
-    } else {
-        effectiveLeverage = direction === 'long' ? avgBuyLeverage : (direction === 'short' ? avgSellLeverage : 1);
-    }
     
-    const avgOpenPrice = direction === 'long' 
-        ? avgBuyPrice 
-        : direction === 'short' 
-            ? avgSellPrice 
-            : (originalDirection === 'long' ? avgBuyPrice : avgSellPrice);
+    const effectiveLeverage = originalDirection === 'long' ? avgBuyLeverage : avgSellLeverage;
+    const avgOpenPrice = originalDirection === 'long' ? avgBuyPrice : avgSellPrice;
 
     let realizedPnl = 0;
-    if (isClosed) {
-        realizedPnl = totalSellValue - totalBuyCost;
-    } else {
-        if (direction === 'long') {
-            if (totalSellAmount > 0) {
-                const costOfSold = avgBuyPrice * totalSellAmount;
-                realizedPnl = totalSellValue - costOfSold;
-            }
-        } else if (direction === 'short') {
-            if (totalBuyAmount > 0) {
-                const valueOfCovered = avgSellPrice * totalBuyAmount;
-                realizedPnl = valueOfCovered - totalBuyCost;
-            }
-        }
+    if (originalDirection === 'long') {
+        const costOfSold = avgBuyPrice * totalSellAmount;
+        realizedPnl = totalSellValue - costOfSold;
+    } else { // short
+        const valueOfCovered = avgSellPrice * totalBuyAmount;
+        realizedPnl = valueOfCovered - totalBuyCost;
     }
     
     const netPnlForDisplay = realizedPnl - totalFees;
-
-    let totalInvestment = 0;
-    position.trades.forEach(trade => {
-        if ((originalDirection === 'long' && trade.action === 'Buy') || (originalDirection === 'short' && trade.action === 'Sell')) {
-            const leverage = trade.leverage && trade.leverage > 1 ? trade.leverage : 1;
-            totalInvestment += trade.total / leverage;
-        }
-    });
-
     const netRoi = totalInvestment > 0 ? (netPnlForDisplay / totalInvestment) * 100 : 0;
 
     let liquidationPrice = 0;
     if (!isClosed && effectiveLeverage > 1) {
-        if (direction === 'long') {
-            const initialLiq = avgOpenPrice * (1 - (1 / effectiveLeverage));
-            const pnlAdjustment = remainingAmount !== 0 ? realizedPnl / remainingAmount : 0;
-            liquidationPrice = initialLiq - pnlAdjustment;
-        } else { // short
-            const initialLiq = avgOpenPrice * (1 + (1 / effectiveLeverage));
-            const pnlAdjustment = remainingAmount !== 0 ? realizedPnl / remainingAmount : 0;
-            liquidationPrice = initialLiq - pnlAdjustment;
-        }
+      const direction = remainingAmount > 0 ? 'long' : 'short';
+      if (direction === 'long') {
+          const initialLiq = avgOpenPrice * (1 - (1 / effectiveLeverage));
+          const pnlAdjustment = remainingAmount !== 0 ? realizedPnl / remainingAmount : 0;
+          liquidationPrice = initialLiq - pnlAdjustment;
+      } else { // short
+          const initialLiq = avgOpenPrice * (1 + (1 / effectiveLeverage));
+          const pnlAdjustment = remainingAmount !== 0 ? realizedPnl / remainingAmount : 0;
+          liquidationPrice = initialLiq - pnlAdjustment;
+      }
     }
     
-    const quoteCurrency = position.pair.split('/')[1] || 'USD';
-    const baseCurrency = position.pair.split('/')[0] || '';
-
-    const positionSize = direction === 'long' 
-        ? totalBuyAmount 
-        : direction === 'short' 
-            ? totalSellAmount 
-            : (originalDirection === 'long' ? totalBuyAmount : totalSellAmount);
-
-    const borrowingDirection = isClosed ? originalDirection : direction;
-    const totalBorrowed = borrowingDirection === 'long' ? totalBorrowedQuote : totalBorrowedBase;
-    const borrowedCurrency = borrowingDirection === 'long' ? quoteCurrency : baseCurrency;
+    const positionSize = originalDirection === 'long' ? totalBuyAmount : totalSellAmount;
+    const borrowedCurrency = originalDirection === 'long' ? quoteCurrency : baseCurrency;
 
     return {
       positionSize,
@@ -198,6 +204,9 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
       netRoi,
       totalBorrowed,
       borrowedCurrency,
+      remainingBorrowed,
+      tradeBorrowingInfo,
+      originalDirection
     };
   }, [position.trades, position.pair]);
   
@@ -210,17 +219,18 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
 
   const TradeRow: React.FC<{trade: Trade}> = ({ trade }) => {
     let borrowingDisplay = '-';
-    if (trade.leverage && trade.leverage > 1) {
-        if (trade.action === 'Buy') {
-            const borrowedAmount = trade.total - (trade.total / trade.leverage);
-            borrowingDisplay = `${formatCurrency(borrowedAmount).substring(1)} ${stats.quoteCurrency}`;
-        } else { // Sell
-            borrowingDisplay = `${formatNumber(trade.amount)} ${stats.baseCurrency}`;
-        }
+    const borrowingInfo = stats.tradeBorrowingInfo[trade.id];
+    if (borrowingInfo) {
+        const { amount, currency } = borrowingInfo;
+        const precision = currency === stats.baseCurrency ? 8 : 4;
+        const formattedAmount = formatNumber(Math.abs(amount), precision);
+        borrowingDisplay = `${amount < 0 ? '-' : ''}${formattedAmount} ${currency}`;
     }
 
     const leverage = trade.leverage && trade.leverage > 1 ? trade.leverage : 1;
     const margin = trade.total / leverage;
+
+    const isReducingTrade = (stats.originalDirection === 'long' && trade.action === 'Sell') || (stats.originalDirection === 'short' && trade.action === 'Buy');
 
     return (
         <div className={`grid ${isLedgerView ? 'grid-cols-9' : 'grid-cols-10'} gap-2 p-2 border-b border-brand-border/50 text-sm items-center`}>
@@ -230,12 +240,12 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
                 {trade.action}
             </div>
             <div>{formatCurrency(trade.price)}</div>
-            <div>{formatCurrency(margin)}</div>
+            <div>{isReducingTrade ? '-' : formatCurrency(margin)}</div>
             <div>{borrowingDisplay}</div>
             <div>{formatNumber(trade.amount)}</div>
             <div>{formatCurrency(trade.total)}</div>
             <div>{formatCurrency(trade.fee).substring(1)}</div>
-            <div className="text-center">{trade.leverage ? `${trade.leverage}x` : '-'}</div>
+            <div className="text-center">{isReducingTrade ? '-' : (trade.leverage ? `${trade.leverage}x` : '-')}</div>
             {!isLedgerView && (
                 <div className="flex items-center justify-center gap-2 text-xs relative">
                     {tradeToDeleteConfirm === trade.id && (
@@ -331,7 +341,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
                 )}
             </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 text-sm">
           <div>
             <p className="text-brand-text-secondary">Avg. Open</p>
             <p className="font-semibold">{formatCurrency(stats.avgOpenPrice)}</p>
@@ -343,10 +353,6 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
           <div>
             <p className="text-brand-text-secondary">Avg. Leverage</p>
             <p className="font-semibold">{stats.avgLeverage > 1 ? `${stats.avgLeverage.toFixed(1)}x` : 'N/A'}</p>
-          </div>
-          <div>
-            <p className="text-brand-text-secondary">Total Borrowed</p>
-            <p className="font-semibold">{stats.totalBorrowed > 0 ? `${formatNumber(stats.totalBorrowed, 4)} ${stats.borrowedCurrency}` : 'N/A'}</p>
           </div>
           <div>
              <p className="text-brand-text-secondary flex items-center gap-1">
@@ -372,6 +378,14 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
            <div>
             <p className="text-brand-text-secondary">Remaining</p>
             <p className="font-semibold">{formatNumber(stats.remainingAmount)} {stats.baseCurrency}</p>
+          </div>
+          <div>
+            <p className="text-brand-text-secondary">Total Borrowed</p>
+            <p className="font-semibold">{stats.totalBorrowed > 0 ? `${formatNumber(stats.totalBorrowed, 4)} ${stats.borrowedCurrency}` : 'N/A'}</p>
+          </div>
+          <div>
+            <p className="text-brand-text-secondary">Rem. Borrowed</p>
+            <p className="font-semibold">{stats.totalBorrowed > 0 ? `${formatNumber(stats.remainingBorrowed, 4)} ${stats.borrowedCurrency}` : 'N/A'}</p>
           </div>
         </div>
       </div>

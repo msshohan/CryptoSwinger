@@ -190,6 +190,31 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
         return totalForFee * feeRate;
     }, [total, closeTotal, feeRate, isOpeningTradeAction]);
 
+    const { borrowedAmountValue, borrowedCurrency, borrowedAmountPrecision } = useMemo(() => {
+        if (!isLeveragedMarket || !isOpeningTradeAction) return { borrowedAmountValue: 0, borrowedCurrency: '', borrowedAmountPrecision: 4 };
+        
+        const numTotal = parseFloat(total) || 0;
+        const numPrincipal = parseFloat(principal) || 0;
+        const numAmount = parseFloat(amount) || 0;
+        const numPrice = parseFloat(price) || 1;
+        
+        if (action === 'Buy') {
+            return {
+                borrowedAmountValue: numTotal - numPrincipal,
+                borrowedCurrency: quoteCurrency,
+                borrowedAmountPrecision: 4
+            };
+        } else { // Sell
+            const marginInBaseCurrency = numPrincipal / numPrice;
+            const borrowedValue = Math.max(0, numAmount - marginInBaseCurrency);
+            return {
+                borrowedAmountValue: borrowedValue,
+                borrowedCurrency: baseCurrency,
+                borrowedAmountPrecision: 8
+            };
+        }
+    }, [isLeveragedMarket, isOpeningTradeAction, action, total, principal, amount, price, quoteCurrency, baseCurrency]);
+
     useEffect(() => {
         if (isClosingPosition) {
             const remaining = positionState.remainingAmount;
@@ -370,6 +395,9 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
                 <div className="text-center text-sm text-brand-text-secondary pt-2 space-y-1 bg-black/20 p-3 rounded-md">
                     <p>Fee Type: <span className="font-semibold text-brand-text-primary">{feeType}</span></p>
                     <p>Fee Rate: <span className="font-semibold text-brand-text-primary">{(feeRate * 100).toFixed(4)}%</span></p>
+                    {isLeveragedMarket && isOpeningTradeAction && borrowedAmountValue > 0 && (
+                        <p>Borrowing: <span className="font-semibold text-brand-text-primary">{borrowedAmountValue.toFixed(borrowedAmountPrecision).replace(/\.?0+$/, "")} {borrowedCurrency}</span></p>
+                    )}
                     <p>Estimated Fee: <span className="font-semibold text-brand-text-primary">{feeAmount.toFixed(8)} {quoteCurrency}</span></p>
                 </div>
 

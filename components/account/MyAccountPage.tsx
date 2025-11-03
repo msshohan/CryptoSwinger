@@ -47,50 +47,113 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
 
     const handleExport = () => {
         const headers = [
-            "Position ID", "Time", "Pair", "Action", "Order Type", "Price", "Margin", "Leverage (x)",
-            "Position (Base)", "Position (Quote)", "Trading Fee (USD)",
-            "Position Total (Base)", "Position Total (Quote)", "Total PnL",
+            "Position ID", "Time", "Pair", "Action", "Order Type", "Price", "Margin", "Borrowed", "Leverage",
+            "Amount", "Total", "Fee", // Per-trade
+            "Final Position Size", "Final Position Value", "Total Borrowed", "Remaining Borrowed", "Total PnL", // Summary
             "Average Open", "Net ROI", "Market", "Opinion"
         ];
         
         let csvRows: string[] = [headers.join(',')];
 
         props.ledgerPositions.forEach(pos => {
-            let totalBuyAmount = 0;
-            let totalBuyCost = 0;
-            let totalSellValue = 0;
-            let totalFees = 0;
+            const [baseCurrency, quoteCurrency] = pos.pair.split('/');
+            const tradesSorted = [...pos.trades].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            if (tradesSorted.length === 0) return;
 
-            pos.trades.forEach(trade => {
+            const originalDirection = tradesSorted[0].action === 'Buy' ? 'long' : 'short';
+
+            let totalBuyAmount = 0, totalBuyCost = 0, totalSellAmount = 0, totalSellValue = 0, totalFees = 0;
+            let totalBorrowed = 0, remainingBorrowed = 0, initialInvestment = 0;
+            const tradeBorrowingMap: { [key: string]: string } = {};
+
+            tradesSorted.forEach(trade => {
                 totalFees += trade.fee;
+                const leverage = trade.leverage && trade.leverage > 1 ? trade.leverage : 1;
+
+                if ((originalDirection === 'long' && trade.action === 'Buy') || (originalDirection === 'short' && trade.action === 'Sell')) {
+                    initialInvestment += trade.total / leverage;
+                }
+
                 if (trade.action === 'Buy') {
                     totalBuyAmount += trade.amount;
                     totalBuyCost += trade.total;
-                } else {
+                } else { // Sell
+                    totalSellAmount += trade.amount;
                     totalSellValue += trade.total;
                 }
+                
+                let borrowedAmountForTrade = 'N/A';
+                if (leverage > 1) {
+                    if (originalDirection === 'long') {
+                        if (trade.action === 'Buy') {
+                            const borrowedThisTrade = trade.total * (1 - 1/leverage);
+                            remainingBorrowed += borrowedThisTrade;
+                            totalBorrowed += borrowedThisTrade;
+                            borrowedAmountForTrade = `${borrowedThisTrade.toFixed(2)} ${quoteCurrency}`;
+                        } else { // Sell
+                            const repaymentAmount = Math.min(trade.total, remainingBorrowed);
+                            if (repaymentAmount > 0) {
+                                remainingBorrowed -= repaymentAmount;
+                                borrowedAmountForTrade = `-${repaymentAmount.toFixed(2)} ${quoteCurrency}`;
+                            }
+                        }
+                    } else { // short
+                        if (trade.action === 'Sell') {
+                            const borrowedThisTrade = trade.amount * (1 - 1/leverage);
+                            remainingBorrowed += borrowedThisTrade;
+                            totalBorrowed += borrowedThisTrade;
+                            borrowedAmountForTrade = `${parseFloat(borrowedThisTrade.toFixed(8))} ${baseCurrency}`;
+                        } else { // Buy
+                            const repaymentAmount = Math.min(trade.amount, remainingBorrowed);
+                            if (repaymentAmount > 0) {
+                                remainingBorrowed -= repaymentAmount;
+                                borrowedAmountForTrade = `-${parseFloat(repaymentAmount.toFixed(8))} ${baseCurrency}`;
+                            }
+                        }
+                    }
+                }
+                tradeBorrowingMap[trade.id] = borrowedAmountForTrade;
             });
-
-            const avgOpenPrice = totalBuyAmount > 0 ? totalBuyCost / totalBuyAmount : 0;
-            const totalPnl = totalSellValue - totalBuyCost - totalFees;
-            const netRoi = totalBuyCost > 0 ? `${((totalPnl / totalBuyCost) * 100).toFixed(2)}%` : '0.00%';
             
+            const avgBuyPrice = totalBuyAmount > 0 ? totalBuyCost / totalBuyAmount : 0;
+            const avgSellPrice = totalSellAmount > 0 ? totalSellValue / totalSellAmount : 0;
+            const avgOpenPrice = originalDirection === 'long' ? avgBuyPrice : avgSellPrice;
+
+            let pnl = 0;
+            if (originalDirection === 'long') {
+                pnl = totalSellValue - (totalSellAmount * avgBuyPrice);
+            } else {
+                pnl = (totalBuyAmount * avgSellPrice) - totalBuyCost;
+            }
+            const totalPnl = pnl - totalFees;
+            const netRoi = initialInvestment > 0 ? `${((totalPnl / initialInvestment) * 100).toFixed(2)}%` : '0.00%';
+            
+            const borrowedCurrency = originalDirection === 'long' ? quoteCurrency : baseCurrency;
+            const borrowedPrecision = borrowedCurrency === baseCurrency ? 8 : 2;
+            const totalBorrowedDisplay = totalBorrowed > 0 ? `${totalBorrowed.toFixed(borrowedPrecision)} ${borrowedCurrency}` : 'N/A';
+            const remainingBorrowedDisplay = totalBorrowed > 0 ? `${remainingBorrowed.toFixed(borrowedPrecision)} ${borrowedCurrency}` : 'N/A';
+
+            const finalPositionSize = originalDirection === 'long' ? totalBuyAmount : totalSellAmount;
+            const finalPositionValue = originalDirection === 'long' ? totalSellValue : totalBuyCost;
+
             const summaryData = [
-                escapeCsvCell(totalBuyAmount),
-                escapeCsvCell(totalBuyCost),
-                escapeCsvCell(totalPnl),
-                escapeCsvCell(avgOpenPrice),
+                escapeCsvCell(`${finalPositionSize.toFixed(8)} ${baseCurrency}`),
+                escapeCsvCell(`${finalPositionValue.toFixed(2)} ${quoteCurrency}`),
+                escapeCsvCell(totalBorrowedDisplay),
+                escapeCsvCell(remainingBorrowedDisplay),
+                escapeCsvCell(`${totalPnl.toFixed(2)} ${quoteCurrency}`),
+                escapeCsvCell(`${avgOpenPrice.toFixed(4)} ${quoteCurrency}`),
                 escapeCsvCell(netRoi),
                 escapeCsvCell(pos.market),
                 escapeCsvCell(pos.notes),
             ];
 
-            pos.trades.forEach((trade, index) => {
-                const isLastTrade = index === pos.trades.length - 1;
+            tradesSorted.forEach((trade, index) => {
+                const isLastTrade = index === tradesSorted.length - 1;
                 
-                const margin = (trade.action === 'Buy' && trade.leverage && trade.leverage > 1)
-                    ? (trade.total / trade.leverage)
-                    : (trade.action === 'Buy' ? trade.total : 0);
+                const leverage = trade.leverage && trade.leverage > 1 ? trade.leverage : 1;
+                const margin = trade.total / leverage;
+                const borrowedAmountForTrade = tradeBorrowingMap[trade.id] || 'N/A';
 
                 const tradeData = [
                     escapeCsvCell(pos.id),
@@ -98,22 +161,22 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
                     escapeCsvCell(pos.pair),
                     escapeCsvCell(trade.action),
                     escapeCsvCell(trade.orderType),
-                    escapeCsvCell(trade.price),
-                    escapeCsvCell(margin),
-                    escapeCsvCell(trade.leverage ? `${trade.leverage}x` : 'N/A'),
-                    escapeCsvCell(trade.amount),
-                    escapeCsvCell(trade.total),
-                    escapeCsvCell(trade.fee)
+                    escapeCsvCell(`${trade.price.toFixed(4)} ${quoteCurrency}`),
+                    escapeCsvCell(`${margin.toFixed(2)} ${quoteCurrency}`),
+                    escapeCsvCell(borrowedAmountForTrade),
+                    escapeCsvCell(trade.leverage || '1'),
+                    escapeCsvCell(`${parseFloat(trade.amount.toFixed(8))} ${baseCurrency}`),
+                    escapeCsvCell(`${trade.total.toFixed(2)} ${quoteCurrency}`),
+                    escapeCsvCell(`${trade.fee.toFixed(4)} ${quoteCurrency}`)
                 ];
 
                 const finalRow = isLastTrade
                     ? [...tradeData, ...summaryData]
-                    : [...tradeData, '', '', '', '', '', '', ''];
+                    : [...tradeData, '', '', '', '', '', '', '', '', ''];
                 
                 csvRows.push(finalRow.join(','));
             });
 
-            // Add an empty row for separation between positions
             csvRows.push('');
         });
 
@@ -130,7 +193,6 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
     const renderContent = () => {
         switch (activePage) {
             case 'overview':
-                // Pass ledger positions to overview for historical stats
                 return <Overview positions={props.ledgerPositions} />;
             case 'ledger':
                 return (
@@ -158,7 +220,6 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
                                     position={pos}
                                     onDeletePosition={props.onDeleteLedgerPosition}
                                     isLedgerView={true}
-                                    // Dummy props to satisfy type, won't be used in ledger view
                                     onAddTrade={() => {}}
                                     onEditTrade={() => {}}
                                     onDeleteTrade={() => {}}
