@@ -73,6 +73,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
     let totalSellAmount = 0;
     let totalSellValue = 0;
     let totalFees = 0;
+    let totalBorrowedQuote = 0;
+    let totalBorrowedBase = 0;
 
     let totalWeightedBuyLeverage = 0;
     let totalBuyValueForLeverage = 0;
@@ -87,6 +89,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
         if (trade.leverage && trade.leverage > 1) {
             totalWeightedBuyLeverage += trade.total * trade.leverage;
             totalBuyValueForLeverage += trade.total;
+            totalBorrowedQuote += trade.total - (trade.total / trade.leverage);
         }
       } else { // Sell
         totalSellAmount += trade.amount;
@@ -94,6 +97,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
         if (trade.leverage && trade.leverage > 1) {
             totalWeightedSellLeverage += trade.total * trade.leverage;
             totalSellValueForLeverage += trade.total;
+            totalBorrowedBase += trade.amount;
         }
       }
     });
@@ -177,6 +181,10 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
             ? totalSellAmount 
             : (originalDirection === 'long' ? totalBuyAmount : totalSellAmount);
 
+    const borrowingDirection = isClosed ? originalDirection : direction;
+    const totalBorrowed = borrowingDirection === 'long' ? totalBorrowedQuote : totalBorrowedBase;
+    const borrowedCurrency = borrowingDirection === 'long' ? quoteCurrency : baseCurrency;
+
     return {
       positionSize,
       remainingAmount,
@@ -188,6 +196,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
       avgLeverage: effectiveLeverage,
       liquidationPrice,
       netRoi,
+      totalBorrowed,
+      borrowedCurrency,
     };
   }, [position.trades, position.pair]);
   
@@ -199,19 +209,29 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
   };
 
   const TradeRow: React.FC<{trade: Trade}> = ({ trade }) => {
-    const margin = trade.action === 'Buy'
-        ? trade.total / (trade.leverage && trade.leverage > 1 ? trade.leverage : 1)
-        : 0;
+    let borrowingDisplay = '-';
+    if (trade.leverage && trade.leverage > 1) {
+        if (trade.action === 'Buy') {
+            const borrowedAmount = trade.total - (trade.total / trade.leverage);
+            borrowingDisplay = `${formatCurrency(borrowedAmount).substring(1)} ${stats.quoteCurrency}`;
+        } else { // Sell
+            borrowingDisplay = `${formatNumber(trade.amount)} ${stats.baseCurrency}`;
+        }
+    }
+
+    const leverage = trade.leverage && trade.leverage > 1 ? trade.leverage : 1;
+    const margin = trade.total / leverage;
 
     return (
-        <div className={`grid ${isLedgerView ? 'grid-cols-8' : 'grid-cols-9'} gap-2 p-2 border-b border-brand-border/50 text-sm items-center`}>
+        <div className={`grid ${isLedgerView ? 'grid-cols-9' : 'grid-cols-10'} gap-2 p-2 border-b border-brand-border/50 text-sm items-center`}>
             <div>{new Date(trade.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
             <div className={`flex items-center gap-1 font-semibold ${trade.action === 'Buy' ? 'text-brand-success' : 'text-brand-danger'}`}>
                 {trade.action === 'Buy' ? <ArrowUpIcon /> : <ArrowDownIcon />}
                 {trade.action}
             </div>
             <div>{formatCurrency(trade.price)}</div>
-            <div>{margin > 0 ? formatCurrency(margin) : '-'}</div>
+            <div>{formatCurrency(margin)}</div>
+            <div>{borrowingDisplay}</div>
             <div>{formatNumber(trade.amount)}</div>
             <div>{formatCurrency(trade.total)}</div>
             <div>{formatCurrency(trade.fee).substring(1)}</div>
@@ -325,8 +345,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
             <p className="font-semibold">{stats.avgLeverage > 1 ? `${stats.avgLeverage.toFixed(1)}x` : 'N/A'}</p>
           </div>
           <div>
-            <p className="text-brand-text-secondary">Remaining</p>
-            <p className="font-semibold">{formatNumber(stats.remainingAmount)} {stats.baseCurrency}</p>
+            <p className="text-brand-text-secondary">Total Borrowed</p>
+            <p className="font-semibold">{stats.totalBorrowed > 0 ? `${formatNumber(stats.totalBorrowed, 4)} ${stats.borrowedCurrency}` : 'N/A'}</p>
           </div>
           <div>
              <p className="text-brand-text-secondary flex items-center gap-1">
@@ -349,6 +369,10 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
               {stats.netRoi.toFixed(2)}%
             </p>
           </div>
+           <div>
+            <p className="text-brand-text-secondary">Remaining</p>
+            <p className="font-semibold">{formatNumber(stats.remainingAmount)} {stats.baseCurrency}</p>
+          </div>
         </div>
       </div>
 
@@ -364,11 +388,12 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, onAddTrade
           Toggle Trade History
         </summary>
         <div className="p-2">
-            <div className={`grid ${isLedgerView ? 'grid-cols-8' : 'grid-cols-9'} gap-2 p-2 font-bold text-xs text-brand-text-secondary border-b border-brand-border`}>
+            <div className={`grid ${isLedgerView ? 'grid-cols-9' : 'grid-cols-10'} gap-2 p-2 font-bold text-xs text-brand-text-secondary border-b border-brand-border`}>
                 <div>Time</div>
                 <div>Action</div>
                 <div>Price</div>
                 <div>Margin</div>
+                <div>Borrowed</div>
                 <div>Amount</div>
                 <div>Total</div>
                 <div>Fee</div>

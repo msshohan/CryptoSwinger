@@ -376,6 +376,9 @@ export const Calculator: React.FC<CalculatorProps> = ({ onLogTrade, positionToUp
                 <button type="submit" className={`w-full py-3 px-4 text-white font-semibold rounded-md transition-colors ${action === 'Buy' ? 'bg-brand-success hover:bg-green-500' : 'bg-brand-danger hover:bg-red-500'}`}>
                     {isEditMode ? `Save Changes to Trade` : isUpdateMode ? `Log ${action} Trade` : `Log Initial ${action} Trade`}
                 </button>
+                 <p className="text-xs text-brand-text-secondary/80 text-center mt-3 px-2">
+                    Disclaimer: Calculations are an estimate and may not be exactly accurate. Other factors like Margin Level, hourly interest etc. can vary by exchange and impact actual calculation.
+                </p>
             </form>
         </div>
     );
