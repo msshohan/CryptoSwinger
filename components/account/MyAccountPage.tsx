@@ -151,9 +151,14 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
             tradesSorted.forEach((trade, index) => {
                 const isLastTrade = index === tradesSorted.length - 1;
                 
+                const isReducingTrade = (originalDirection === 'long' && trade.action === 'Sell') || (originalDirection === 'short' && trade.action === 'Buy');
+
                 const leverage = trade.leverage && trade.leverage > 1 ? trade.leverage : 1;
                 const margin = trade.total / leverage;
                 const borrowedAmountForTrade = tradeBorrowingMap[trade.id] || 'N/A';
+
+                const marginDisplay = isReducingTrade ? '-' : `${margin.toFixed(2)} ${quoteCurrency}`;
+                const leverageDisplay = isReducingTrade ? '-' : (trade.leverage ? String(trade.leverage) : '1');
 
                 const tradeData = [
                     escapeCsvCell(pos.id),
@@ -162,9 +167,9 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
                     escapeCsvCell(trade.action),
                     escapeCsvCell(trade.orderType),
                     escapeCsvCell(`${trade.price.toFixed(4)} ${quoteCurrency}`),
-                    escapeCsvCell(`${margin.toFixed(2)} ${quoteCurrency}`),
+                    escapeCsvCell(marginDisplay),
                     escapeCsvCell(borrowedAmountForTrade),
-                    escapeCsvCell(trade.leverage || '1'),
+                    escapeCsvCell(leverageDisplay),
                     escapeCsvCell(`${parseFloat(trade.amount.toFixed(8))} ${baseCurrency}`),
                     escapeCsvCell(`${trade.total.toFixed(2)} ${quoteCurrency}`),
                     escapeCsvCell(`${trade.fee.toFixed(4)} ${quoteCurrency}`)
