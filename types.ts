@@ -1,4 +1,3 @@
-
 export type ExchangeName = 'Binance' | 'Bybit' | 'Other';
 export type Market = 'Spot' | 'Cross Margin' | 'Isolated Margin' | 'Options';
 export type OrderType = 'Limit' | 'Market' | 'Stop-Limit' | 'Stop Market';
