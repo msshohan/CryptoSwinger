@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Calculator } from './components/Calculator';
 import { TradeLogger } from './components/TradeLogger';
 import { Position, Trade, ExchangeName, Market, User } from './types';
@@ -26,12 +26,49 @@ const MOCK_USER: User = {
     email: 'alex.crypto@example.com',
 };
 
+// Helper function to load and parse positions from localStorage
+const loadPositionsFromStorage = (key: string): Position[] => {
+    try {
+        const savedData = localStorage.getItem(key);
+        if (!savedData) return [];
+        
+        const parsedPositions = JSON.parse(savedData) as Position[];
+        // Revive date strings into Date objects
+        return parsedPositions.map(position => ({
+            ...position,
+            trades: position.trades.map(trade => ({
+                ...trade,
+                timestamp: new Date(trade.timestamp)
+            }))
+        }));
+    } catch (error) {
+        console.error(`Failed to load positions from local storage for key "${key}":`, error);
+        return [];
+    }
+};
+
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('main');
-  const [activePositions, setActivePositions] = useState<Position[]>([]);
-  const [ledgerPositions, setLedgerPositions] = useState<Position[]>([]);
+  const [activePositions, setActivePositions] = useState<Position[]>(() => loadPositionsFromStorage('crypto-trader-active-positions'));
+  const [ledgerPositions, setLedgerPositions] = useState<Position[]>(() => loadPositionsFromStorage('crypto-trader-ledger-positions'));
   const [editingState, setEditingState] = useState<{ positionId: string; tradeId?: string } | null>(null);
+
+  useEffect(() => {
+    try {
+        localStorage.setItem('crypto-trader-active-positions', JSON.stringify(activePositions));
+    } catch (error) {
+        console.error("Failed to save active positions to local storage:", error);
+    }
+  }, [activePositions]);
+
+  useEffect(() => {
+    try {
+        localStorage.setItem('crypto-trader-ledger-positions', JSON.stringify(ledgerPositions));
+    } catch (error) {
+        console.error("Failed to save ledger positions to local storage:", error);
+    }
+  }, [ledgerPositions]);
 
   const navigate = (page: Page) => setCurrentPage(page);
 
