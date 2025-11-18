@@ -38,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({ user, navigate }) => {
         <div className="w-1/3 flex justify-end items-center gap-4" ref={menuRef}>
             <div className="relative">
                 <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="flex items-center gap-2" aria-label="Open user menu">
-                    <span className="hidden sm:inline text-sm font-medium text-brand-text-secondary">{user.name}</span>
+                    <span className="hidden sm:inline text-sm font-medium text-brand-text-secondary">{user.firstName} {user.lastName}</span>
                     {user.avatarUrl ? (
                     <img src={user.avatarUrl} alt="User avatar" className="w-8 h-8 rounded-full" />
                     ) : (
@@ -49,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({ user, navigate }) => {
                     <div className="absolute right-0 mt-2 w-56 bg-brand-surface rounded-md shadow-lg border border-brand-border z-10">
                         <div className="p-2">
                             <div className="px-2 py-2 mb-2 border-b border-brand-border">
-                                <p className="text-sm font-semibold">{user.name}</p>
+                                <p className="text-sm font-semibold">{user.firstName} {user.lastName}</p>
                                 <p className="text-xs text-brand-text-secondary truncate">{user.email}</p>
                             </div>
                             <button

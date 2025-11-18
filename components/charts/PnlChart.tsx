@@ -17,37 +17,59 @@ const formatCurrency = (value: number) => {
 
 export const PnlChart: React.FC<PnlChartProps> = ({ positions }) => {
     const dataPoints = useMemo<DataPoint[]>(() => {
-        const closedTradesPnl: { timestamp: Date, pnl: number }[] = [];
+        const pnlEvents: { timestamp: Date, pnl: number }[] = [];
 
         positions.forEach(position => {
-            const buys = position.trades.filter(t => t.action === 'Buy').sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-            const sells = position.trades.filter(t => t.action === 'Sell').sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+            const tradesSorted = [...position.trades].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            if (tradesSorted.length === 0) return;
 
-            if (buys.length > 0 && sells.length > 0) {
-                 const totalBuyAmount = buys.reduce((sum, t) => sum + t.amount, 0);
-                 const totalBuyCost = buys.reduce((sum, t) => sum + t.total, 0);
-                 const avgBuyPrice = totalBuyCost / totalBuyAmount;
+            const originalDirection = tradesSorted[0].action === 'Buy' ? 'long' : 'short';
 
-                 sells.forEach(sell => {
-                    const costOfSold = sell.amount * avgBuyPrice;
-                    const pnl = (sell.total - costOfSold) - sell.fee;
-                    closedTradesPnl.push({ timestamp: sell.timestamp, pnl });
-                 });
-                 // Also account for fees on buy trades
-                 buys.forEach(buy => {
-                    closedTradesPnl.push({ timestamp: buy.timestamp, pnl: -buy.fee });
-                 })
+            const buys = tradesSorted.filter(t => t.action === 'Buy');
+            const sells = tradesSorted.filter(t => t.action === 'Sell');
+
+            if (originalDirection === 'long') {
+                const totalBuyAmount = buys.reduce((sum, t) => sum + t.amount, 0);
+                const totalBuyCost = buys.reduce((sum, t) => sum + t.total, 0);
+                
+                if (totalBuyAmount > 0) {
+                    const avgBuyPrice = totalBuyCost / totalBuyAmount;
+                    sells.forEach(sell => {
+                        const costOfSold = sell.amount * avgBuyPrice;
+                        const pnl = (sell.total - costOfSold) - sell.fee;
+                        pnlEvents.push({ timestamp: sell.timestamp, pnl });
+                    });
+                }
+                buys.forEach(buy => {
+                    pnlEvents.push({ timestamp: buy.timestamp, pnl: -buy.fee });
+                });
+
+            } else { // short position
+                const totalSellAmount = sells.reduce((sum, t) => sum + t.amount, 0);
+                const totalSellValue = sells.reduce((sum, t) => sum + t.total, 0);
+
+                if (totalSellAmount > 0) {
+                    const avgSellPrice = totalSellValue / totalSellAmount;
+                    buys.forEach(buy => {
+                        const valueWhenCovered = buy.amount * avgSellPrice;
+                        const pnl = valueWhenCovered - buy.total - buy.fee;
+                        pnlEvents.push({ timestamp: buy.timestamp, pnl });
+                    });
+                }
+                sells.forEach(sell => {
+                    pnlEvents.push({ timestamp: sell.timestamp, pnl: -sell.fee });
+                });
             }
         });
         
-        if (closedTradesPnl.length === 0) return [];
+        if (pnlEvents.length === 0) return [];
         
-        closedTradesPnl.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        pnlEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
         let cumulativePnl = 0;
-        return closedTradesPnl.map(trade => {
-            cumulativePnl += trade.pnl;
-            return { date: trade.timestamp, pnl: cumulativePnl };
+        return pnlEvents.map(event => {
+            cumulativePnl += event.pnl;
+            return { date: event.timestamp, pnl: cumulativePnl };
         });
 
     }, [positions]);

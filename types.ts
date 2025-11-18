@@ -31,7 +31,8 @@ export interface Position {
 }
 
 export interface User {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   avatarUrl?: string;
 }

@@ -22,7 +22,8 @@ interface TradeData {
 }
 
 const MOCK_USER: User = {
-    name: 'Alex Crypto',
+    firstName: 'Alex',
+    lastName: 'Crypto',
     email: 'alex.crypto@example.com',
 };
 

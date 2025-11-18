@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { User, Position } from '../../types';
-import { ChartBarIcon, BookmarkIcon, ArrowDownTrayIcon } from '../icons';
+import { ChartBarIcon, BookmarkIcon, ArrowDownTrayIcon, UserIcon, CreditCardIcon, ScaleIcon } from '../icons';
 import { Overview } from './Overview';
 import { PositionCard } from '../PositionCard';
+import { Profile } from './Profile';
+import { Billing } from './Billing';
+import { Legal } from './Legal';
 
-type AccountPage = 'overview' | 'ledger';
+
+type AccountPage = 'overview' | 'ledger' | 'profile' | 'billing' | 'legal';
 
 interface MyAccountPageProps {
     user: User;
@@ -32,7 +36,7 @@ const NavItem: React.FC<{
 );
 
 export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
-    const [activePage, setActivePage] = useState<AccountPage>('overview');
+    const [activePage, setActivePage] = useState<AccountPage>('profile');
     
     const escapeCsvCell = (cell: any): string => {
         const strCell = String(cell ?? '');
@@ -196,8 +200,14 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
 
     const renderContent = () => {
         switch (activePage) {
+            case 'profile':
+                return <Profile user={props.user} />;
+            case 'billing':
+                return <Billing />;
             case 'overview':
                 return <Overview positions={props.ledgerPositions} />;
+            case 'legal':
+                return <Legal />;
             case 'ledger':
                 return (
                      <div className="space-y-6">
@@ -243,8 +253,11 @@ export const MyAccountPage: React.FC<MyAccountPageProps> = (props) => {
             <div className="flex flex-col md:flex-row gap-8">
                 <aside className="md:w-64 flex-shrink-0">
                     <div className="bg-brand-surface p-4 rounded-lg border border-brand-border space-y-2">
+                        <NavItem icon={<UserIcon />} label="Profile" isActive={activePage === 'profile'} onClick={() => setActivePage('profile')} />
+                        <NavItem icon={<CreditCardIcon />} label="Billing" isActive={activePage === 'billing'} onClick={() => setActivePage('billing')} />
                         <NavItem icon={<ChartBarIcon />} label="Overview" isActive={activePage === 'overview'} onClick={() => setActivePage('overview')} />
                         <NavItem icon={<BookmarkIcon />} label="Trade Ledger" isActive={activePage === 'ledger'} onClick={() => setActivePage('ledger')} />
+                        <NavItem icon={<ScaleIcon />} label="Legal" isActive={activePage === 'legal'} onClick={() => setActivePage('legal')} />
                     </div>
                 </aside>
                 <main className="flex-grow">
